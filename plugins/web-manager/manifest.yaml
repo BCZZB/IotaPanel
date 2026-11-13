@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# 网站管理插件 —— 宝塔风格网站管理（IotaPanel 插件）
+name: web-manager
+title: 网站管理
+version: 1.0.0
+author: IotaPanel 社区
+description: 宝塔风格网站管理：多域名虚拟主机 / 静态站点 / 反向代理 / SSL（SNI 多证书）/ 强制 HTTPS / IP 黑名单 / 访问统计。纯 Go 零依赖，单进程常驻约 15MB。
+language: go
+command: bin/web-manager
+bind: 127.0.0.1
+keepalive: true          # 本插件自身就是 Web 服务器（站点 7x24 服务），必须常驻
+menus:
+  - title: 网站管理
+    icon: 🌐
+    path: /
+    section: tools

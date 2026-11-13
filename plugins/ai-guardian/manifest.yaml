@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# AI 守护 —— 极低占用 AI 运维探针（IotaPanel 插件）
+name: ai-guardian
+title: AI 守护
+version: 0.1.0
+author: BCZZB
+description: 极低占用 AI 守护：独立微探针(约2MB内存)定时采集服务器与插件指标，周期性调用 AI 模型分析健康状况并给出处置建议，可优雅启停其他插件，内置 MCP 服务。主进程按需唤醒、空闲自动退出，非常驻。
+language: go
+command: bin/ai-guardian
+bind: 127.0.0.1
+menus:
+  - title: AI 守护
+    icon: 🤖
+    path: /
+    section: tools

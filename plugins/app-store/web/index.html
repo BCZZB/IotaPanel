@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>软件商店</title>
+<style>
+:root{
+  --bg:#faf6ef; --card:#fff; --ink:#3d3529; --muted:#8a7d6a;
+  --brand:#8b6f47; --brand-2:#b8925e; --line:#ece4d4;
+  --ok:#4a8f5c; --warn:#c07f3a; --bad:#b5563f;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+.wrap{max-width:1160px;margin:0 auto;padding:16px}
+
+/* 顶栏 */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.logo{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700}
+.logo .em{font-size:22px}
+.docker-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:#ccc}
+.dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
+.spacer{flex:1}
+
+/* 顶部主标签(宝塔式导航) */
+.navtabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.navtab{padding:10px 20px;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;display:flex;align-items:center;gap:7px;user-select:none}
+.navtab:hover{color:var(--ink)}
+.navtab.active{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+
+/* 工具行 */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.search{position:relative;flex:0 1 300px}
+.search input{width:100%;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);outline:none;font-size:13px}
+.search input:focus{border-color:var(--brand-2)}
+.refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:999px;border:1px solid var(--brand-2);background:#f3ead9;color:var(--brand);cursor:pointer;font-size:13px;font-weight:600;transition:.15s}
+.refresh-btn:hover{background:#ebdcc2}
+.refresh-btn:disabled{opacity:.6;cursor:wait}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+.meta-line{font-size:11px;color:var(--muted);flex:1;min-width:180px}
+.link{color:var(--brand);cursor:pointer;text-decoration:underline}
+
+/* 分类 */
+.cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.cat{padding:5px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);cursor:pointer;font-size:12px;color:var(--muted)}
+.cat.active{background:#f3ead9;border-color:var(--brand-2);color:var(--brand);font-weight:600}
+
+/* 应用卡片 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;cursor:pointer;transition:.15s;position:relative}
+.card:hover{box-shadow:0 4px 14px rgba(139,111,71,.12);transform:translateY(-1px);border-color:var(--brand-2)}
+.card .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.logo-tile{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;background:var(--brand)}
+.logo-tile img{width:26px;height:26px;filter:brightness(0) invert(1);display:block}
+.logo-tile .emoji{font-size:26px;line-height:1}
+.card h3{font-size:15px}
+.card .desc{font-size:12px;color:var(--muted);line-height:1.5;height:36px;overflow:hidden}
+.card .meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:11px;color:var(--muted)}
+.badge-inst{position:absolute;top:12px;right:12px;background:#e8f2ea;color:var(--ok);padding:2px 9px;border-radius:999px;font-size:11px}
+
+/* 表格(宝塔风格) */
+.table-wrap{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:auto}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+table.tbl th{background:#f6f0e4;text-align:left;padding:11px 14px;font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--line)}
+table.tbl td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl tr:hover td{background:#fdfbf7}
+td.cname{font-weight:600;white-space:nowrap}
+td.cname .sub{font-weight:400;font-size:11px;color:var(--muted)}
+td.imgcell{font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+.state .sd{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.state.running .sd{background:var(--ok)} .state.running{color:var(--ok)}
+.state.exited .sd{background:#bbb} .state.exited{color:var(--muted)}
+.state.paused .sd{background:var(--warn)} .state.paused{color:var(--warn)}
+.state.created .sd{background:var(--brand-2)} .state.created{color:var(--brand-2)}
+.ports-cell{font-size:11px;color:var(--muted);line-height:1.7;max-width:200px}
+.btns{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.empty{text-align:center;padding:50px 0;color:var(--muted)}
+
+/* 按钮 */
+button{font-family:inherit}
+.btn{padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:12px;color:var(--ink)}
+.btn:hover{border-color:var(--brand-2)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.pri:hover{background:#7a5f3b}
+.btn.pri:disabled{opacity:.6;cursor:not-allowed}
+.btn.danger{color:var(--bad)}
+.btn.sm{padding:4px 10px;font-size:11px}
+.count-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:999px;background:#f3ead9;color:var(--brand);font-size:11px;font-weight:600;margin-left:6px}
+
+/* 弹窗 */
+.mask{position:fixed;inset:0;background:rgba(61,53,41,.35);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.mask.show{display:flex}
+.modal{background:var(--card);border-radius:16px;width:100%;max-width:560px;max-height:88vh;overflow:auto;padding:22px}
+.modal.wide{max-width:760px}
+.modal h2{font-size:17px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.modal .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.field input,.field select{width:100%;padding:8px 11px;border-radius:8px;border:1px solid var(--line);outline:none;font-size:13px;font-family:inherit;background:#fdfbf7}
+.field input:focus,.field select:focus{border-color:var(--brand-2)}
+.kv-list{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kv-row{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.kv-row>div{background:#fdfbf7;padding:1px}
+.kv-row input{width:100%;border:none;outline:none;padding:7px 10px;font-size:12px;font-family:inherit;background:transparent}
+.kv-head{display:grid;grid-template-columns:1fr 1fr;font-size:11px;color:var(--muted);padding:5px 10px;background:#f6f0e4}
+.kv-add{padding:6px 10px;font-size:11px;color:var(--brand);cursor:pointer;text-align:center;background:#fdfbf7;border-top:1px solid var(--line)}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+
+/* 详情弹窗分区 */
+.sec{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.sec .sec-t{padding:8px 14px;background:#f6f0e4;font-size:12px;font-weight:600;color:var(--brand)}
+.sec .sec-b{padding:10px 14px;font-size:12px;line-height:1.8}
+.kv-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
+.kv-grid .k{color:var(--muted);white-space:nowrap}
+.tag{display:inline-block;background:#f0e9da;padding:1px 8px;border-radius:4px;font-size:11px;margin:2px 4px 2px 0;word-break:break-all}
+
+/* 日志 */
+.logbox{background:#2d2a24;color:#d9d2c2;border-radius:10px;padding:14px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.6;max-height:420px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.log-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.log-toolbar select{padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:#fdfbf7;font-size:12px}
+
+/* toast */
+#toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast-item{padding:10px 20px;border-radius:10px;background:#3d3529;color:#fff;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.2);animation:fade .25s;max-width:80vw}
+.toast-item.ok{background:var(--ok)} .toast-item.bad{background:var(--bad)}
+@keyframes fade{from{opacity:0;transform:translateY(-6px)}to{opacity:1}}
+
+/* 部署遮罩 */
+#deploying{position:fixed;inset:0;background:rgba(250,246,239,.85);display:none;align-items:center;justify-content:center;z-index:60;flex-direction:column;gap:12px}
+#deploying.show{display:flex}
+.spinner{width:38px;height:38px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin 1s linear infinite}
+#deploying .txt{font-size:13px;color:var(--muted)}
+
+.hint-box{background:#fdf3e3;border:1px solid #ecd9b0;border-radius:10px;padding:12px 14px;font-size:12px;color:#8a6d3b;margin-bottom:14px;line-height:1.7}
+code{background:#f0e9da;padding:1px 6px;border-radius:4px;font-size:11px}
+.page{display:none}
+.page.show{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo"><span class="em">🐳</span>Docker 管理器</div>
+    <div class="docker-chip" id="dockerChip"><span class="dot"></span><span id="dockerText">检测中…</span></div>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- 宝塔式主导航 -->
+  <div class="navtabs">
+    <div class="navtab active" data-nav="store">🏪 应用商店</div>
+    <div class="navtab" data-nav="containers">📦 容器<span class="count-chip" id="cntContainers" style="display:none"></span></div>
+    <div class="navtab" data-nav="images">🖼️ 本地镜像<span class="count-chip" id="cntImages" style="display:none"></span></div>
+    <div class="navtab" data-nav="online">🔍 线上镜像</div>
+  </div>
+
+  <div id="hint"></div>
+
+  <!-- ============ 页面:应用商店 ============ -->
+  <div class="page show" id="page-store">
+    <div class="toolbar">
+      <div class="search"><input id="search" placeholder="搜索应用…"></div>
+      <button class="refresh-btn" id="refreshBtn" onclick="refreshLatest()" title="从镜像源拉取最新应用目录">🔄 <span id="refreshLabel">拉取最新</span></button>
+      <button class="refresh-btn" id="crawlBtn" onclick="crawlAllRegistries()" title="从 Docker 官方镜像库 / LinuxServer / Hotio / Quay 爬取全网镜像">🌐 <span id="crawlLabel">爬取全网镜像</span></button>
+      <div class="meta-line" id="metaLine">🏪 共 <b id="mApps">0</b> 个应用 · <b id="mTypes">0</b> 个分类 · <span id="mSource">内置目录</span></div>
+    </div>
+    <div class="cats" id="cats"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- ============ 页面:容器列表(宝塔风格) ============ -->
+  <div class="page" id="page-containers">
+    <div class="toolbar">
+      <button class="refresh-btn" onclick="loadContainers()">🔄 刷新</button>
+      <button class="refresh-btn" onclick="openCustomDeploy()">➕ 创建容器</button>
+      <div class="meta-line" id="containerSummary"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead><tr>
+          <th style="width:190px">容器名称</th>
+          <th style="width:200px">镜像</th>
+          <th style="width:110px">状态</th>
+          <th style="width:200px">端口映射</th>
+          <th style="width:110px">创建时间</th>
+          <th style="text-align:right">操作</th>
+        </tr></thead>
+        <tbody id="containerBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ 页面:本地镜像 ============ -->
+  <div class="page" id="page-images">
+    <div class="toolbar">
+      <button class="refresh-btn" onclick="loadImages()">🔄 刷新</button>
+      <button class="refresh-btn" onclick="openCustomDeploy()">➕ 从镜像创建容器</button>
+      <div class="meta-line" id="imageSummary"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead><tr>
+          <th>镜像名称</th>
+          <th style="width:110px">标签</th>
+          <th style="width:100px">大小</th>
+          <th style="width:130px">创建时间</th>
+          <th style="text-align:right">操作</th>
+        </tr></thead>
+        <tbody id="imageBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ 页面:线上镜像 ============ -->
+  <div class="page" id="page-online">
+    <div class="toolbar">
+      <div class="search" style="flex:0 1 380px"><input id="onlineSearch" placeholder="搜索 Docker Hub 镜像,如 nginx / linuxserver/qbittorrent…" onkeydown="if(event.key==='Enter')searchOnline()"></div>
+      <button class="refresh-btn" onclick="searchOnline()">🔍 搜索</button>
+      <button class="refresh-btn" onclick="openCustomDeploy()">➕ 直接拉取/部署</button>
+    </div>
+    <div id="onlineResult"></div>
+  </div>
+</div>
+
+<!-- 部署弹窗(商店应用) -->
+<div class="mask" id="deployMask">
+  <div class="modal">
+    <h2><span id="dIcon"></span><span id="dName"></span></h2>
+    <div class="sub" id="dDesc"></div>
+    <div class="field"><label>版本</label><select id="dVersion"></select></div>
+    <div class="field"><label>实例名(容器名前缀,字母数字-_)</label><input id="dName2" placeholder="默认与应用 ID 相同"></div>
+    <div class="field"><label>端口映射(主机端口 → 容器端口)</label>
+      <div class="kv-list"><div class="kv-head"><div>主机端口</div><div>容器端口</div></div><div id="dPorts"></div><div class="kv-add" onclick="addKV('dPorts')">+ 添加端口映射</div></div>
+    </div>
+    <div class="field"><label>数据卷(主机路径 → 容器路径,相对路径存面板 data 下)</label>
+      <div class="kv-list"><div class="kv-head"><div>主机路径</div><div>容器路径</div></div><div id="dVols"></div><div class="kv-add" onclick="addKV('dVols')">+ 添加数据卷</div></div>
+    </div>
+    <div class="field"><label>环境变量</label>
+      <div class="kv-list"><div class="kv-head"><div>变量名</div><div>值</div></div><div id="dEnv"></div><div class="kv-add" onclick="addKV('dEnv')">+ 添加环境变量</div></div>
+    </div>
+    <div class="foot">
+      <button class="btn" onclick="closeDeploy()">取消</button>
+      <button class="btn pri" id="dSubmit" onclick="doDeploy()">🚀 一键部署</button>
+    </div>
+  </div>
+</div>
+
+<!-- 自定义镜像部署弹窗(宝塔风格:从任意镜像创建容器) -->
+<div class="mask" id="customMask">
+  <div class="modal">
+    <h2>➕ 创建容器</h2>
+    <div class="sub">输入任意镜像名,自动拉取并运行(支持 Docker Hub / 私有仓库全格式)</div>
+    <div class="field"><label>镜像(如 nginx:latest / linuxserver/qbittorrent:latest)</label><input id="cImage" placeholder="nginx:latest"></div>
+    <div class="field"><label>容器名称(字母数字-_,留空自动生成)</label><input id="cName" placeholder="my-nginx"></div>
+    <div class="field"><label>端口映射(主机端口 → 容器端口)</label>
+      <div class="kv-list"><div class="kv-head"><div>主机端口</div><div>容器端口</div></div><div id="cPorts"></div><div class="kv-add" onclick="addKV('cPorts')">+ 添加端口映射</div></div>
+    </div>
+    <div class="field"><label>数据卷(主机路径 → 容器路径,相对路径存面板 data 下)</label>
+      <div class="kv-list"><div class="kv-head"><div>主机路径</div><div>容器路径</div></div><div id="cVols"></div><div class="kv-add" onclick="addKV('cVols')">+ 添加数据卷</div></div>
+    </div>
+    <div class="field"><label>环境变量</label>
+      <div class="kv-list"><div class="kv-head"><div>变量名</div><div>值</div></div><div id="cEnv"></div><div class="kv-add" onclick="addKV('cEnv')">+ 添加环境变量</div></div>
+    </div>
+    <div class="foot">
+      <button class="btn" onclick="document.getElementById('customMask').classList.remove('show')">取消</button>
+      <button class="btn pri" id="cSubmit" onclick="doCustomDeploy()">🚀 创建并运行</button>
+    </div>
+  </div>
+</div>
+
+<!-- 日志弹窗(宝塔风格:带筛选) -->
+<div class="mask" id="logMask">
+  <div class="modal wide">
+    <h2>📜 容器日志 <span id="logTitle" style="font-size:13px;color:var(--muted);font-weight:400"></span></h2>
+    <div class="log-toolbar">
+      <select id="logTail" onchange="loadContainerLogs(curLogName)">
+        <option value="100">最近 100 行</option>
+        <option value="300" selected>最近 300 行</option>
+        <option value="1000">最近 1000 行</option>
+        <option value="5000">最近 5000 行</option>
+      </select>
+      <button class="btn sm" onclick="loadContainerLogs(curLogName)">🔄 刷新</button>
+      <span style="flex:1"></span>
+      <button class="btn sm" onclick="document.getElementById('logMask').classList.remove('show')">关闭</button>
+    </div>
+    <div class="logbox" id="logBox">加载中…</div>
+  </div>
+</div>
+
+<!-- 容器详情弹窗(宝塔风格) -->
+<div class="mask" id="detailMask">
+  <div class="modal wide">
+    <h2>📄 容器详情 <span id="detailTitle" style="font-size:13px;color:var(--muted);font-weight:400"></span></h2>
+    <div id="detailBody">加载中…</div>
+    <div class="foot"><button class="btn" onclick="document.getElementById('detailMask').classList.remove('show')">关闭</button></div>
+  </div>
+</div>
+
+<div id="deploying"><div class="spinner"></div><div class="txt" id="deployTxt">正在拉取镜像并启动,可能需要几分钟…</div></div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let store = {types:[],apps:[]};
+let curCat = 'all', curQ = '';
+let curNav = 'store';
+let curLogName = '';
+let containers = [];
+let images = [];
+
+function toast(msg, cls=''){
+  const t = document.createElement('div');
+  t.className = 'toast-item ' + cls; t.textContent = msg;
+  $('toast').appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+async function api(path, opts={}){
+  const r = await fetch('api/'+path, opts);
+  const j = await r.json().catch(()=>({ok:false,error:'响应解析失败'}));
+  if(!j.ok) throw new Error(j.error||('HTTP '+r.status));
+  return j.data;
+}
+
+/* ---------- 主导航(宝塔式) ---------- */
+document.querySelectorAll('.navtab').forEach(el=>{
+  el.onclick = ()=>{
+    document.querySelectorAll('.navtab').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    curNav = el.dataset.nav;
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('show'));
+    $('page-'+curNav).classList.add('show');
+    if(curNav==='containers') loadContainers();
+    if(curNav==='images') loadImages();
+  };
+});
+
+/* ---------- 状态 ---------- */
+async function loadStatus(){
+  try{
+    const s = await api('status');
+    const chip = $('dockerChip'), dot = chip.querySelector('.dot');
+    if(s.dockerAlive){
+      dot.className = 'dot on';
+      $('dockerText').textContent = 'Docker ' + s.dockerVersion;
+      $('hint').innerHTML = '';
+    }else if(s.dockerInstalled){
+      dot.className = 'dot off';
+      $('dockerText').textContent = 'Docker 已装未运行';
+      $('hint').innerHTML = `<div class="hint-box">⚠️ ${esc(s.installHint)}</div>`;
+    }else{
+      dot.className = 'dot off';
+      $('dockerText').textContent = 'Docker 未安装';
+      $('hint').innerHTML = `<div class="hint-box">⚠️ 本插件通过 Docker 部署应用,请先安装并启动 Docker:<br>
+        Alpine: <code>apk add docker && rc-update add docker boot && service docker start</code><br>
+        Debian/Ubuntu: <code>curl -fsSL https://get.docker.com | sh</code><br>
+        安装后刷新本页即可。商店浏览不受影响。</div>`;
+    }
+  }catch(e){ $('dockerText').textContent = '状态获取失败'; }
+}
+
+/* ---------- 商店 ---------- */
+async function loadStore(){
+  store = await api('store');
+  renderCats(); renderGrid();
+}
+function renderCats(){
+  const html = ['<div class="cat active" data-c="all">全部</div>']
+    .concat(store.types.map(t=>`<div class="cat" data-c="${esc(t.id)}">${esc(t.name)}</div>`));
+  $('cats').innerHTML = html.join('');
+  $('cats').querySelectorAll('.cat').forEach(el=>{
+    el.onclick = ()=>{
+      $('cats').querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active'); curCat = el.dataset.c; renderGrid();
+    };
+  });
+}
+function renderGrid(){
+  const q = curQ.toLowerCase();
+  const apps = store.apps.filter(a =>
+    (curCat==='all' || a.typeId===curCat) &&
+    (!q || a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q) || a.id.toLowerCase().includes(q)));
+  $('grid').innerHTML = apps.map(a=>`
+    <div class="card" onclick='openDeploy(${JSON.stringify(a.id)})'>
+      ${a.installed?'<span class="badge-inst">已安装</span>':''}
+      <div class="head">
+        <div class="logo-tile" style="background:${esc(a.color||'#8b6f47')}">${logoInner(a)}</div>
+        <h3>${esc(a.name)}</h3>
+      </div>
+      <div class="desc">${esc(a.description)}</div>
+      <div class="meta"><span>${esc((store.types.find(t=>t.id===a.typeId)||{}).name||'')}</span><span>v${esc(a.versions[0]?.version||'')}</span></div>
+    </div>`).join('') || '<div class="empty" style="grid-column:1/-1">没有匹配的应用</div>';
+}
+function logoInner(a){
+  if(a.logo){
+    return `<img src="${esc(a.logo)}" alt="" loading="lazy" data-emoji="${esc(a.icon||'🧩')}" onerror="logoFail(this)">`;
+  }
+  return `<span class="emoji">${esc(a.icon||'🧩')}</span>`;
+}
+function logoFail(img){
+  const s = document.createElement('span');
+  s.className = 'emoji';
+  s.textContent = img.dataset.emoji || '🧩';
+  img.replaceWith(s);
+}
+async function refreshLatest(){
+  const btn = $('refreshBtn');
+  btn.disabled = true;
+  $('refreshLabel').innerHTML = '<span class="spin">🔄</span> 拉取中…';
+  try{
+    const res = await api('refresh', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    toast('✅ ' + res.message, 'ok');
+    await loadStore(); loadMeta();
+  }catch(e){
+    toast('❌ 拉取失败: '+e.message, 'bad');
+  }finally{
+    btn.disabled = false;
+    $('refreshLabel').textContent = '拉取最新';
+  }
+}
+async function loadMeta(){
+  try{
+    const m = await api('meta');
+    $('mApps').textContent = m.apps;
+    $('mTypes').textContent = m.types;
+    let src = m.usingRemote
+      ? `远程目录(更新于 ${esc(m.updatedAt)}) · <span class="link" onclick="resetStore()">恢复内置</span>`
+      : '内置目录 · 数据源 GitHub: BCZZB/iotapanel-appstore';
+    if(m.crawled > 0){
+      src += ` · 🌐 已爬取 ${m.crawled} 个镜像(${esc(m.crawledAt)}) <span class="link" onclick="clearCrawled()">清除</span>`;
+    }
+    $('mSource').innerHTML = src;
+  }catch(e){}
+}
+async function clearCrawled(){
+  if(!confirm('清除所有爬取的镜像,恢复到内置目录?')) return;
+  try{
+    await api('crawl?reset=1', {});
+    toast('已清除爬取的镜像', 'ok');
+    await loadStore(); loadMeta();
+  }catch(e){ toast('❌ '+e.message, 'bad'); }
+}
+async function resetStore(){
+  try{
+    await api('refresh?reset=1', {});
+    toast('已恢复内置目录', 'ok');
+    await loadStore(); loadMeta();
+  }catch(e){ toast('❌ '+e.message, 'bad'); }
+}
+async function crawlAllRegistries(){
+  if(!confirm('将从四个镜像仓库并发爬取:\n\n  1️⃣  Docker 官方镜像库(约 140 个,含版本标签)\n  2️⃣  LinuxServer 全家桶(约 290 个)\n  3️⃣  Hotio 镜像(热门自托管应用)\n  4️⃣  Quay.io 热门仓库\n\n预计耗时 10~120 秒,完成后自动合并进商店。\n\n(已收录的镜像会自动去重)\n\n开始爬取?')) return;
+  const btn = $('crawlBtn');
+  btn.disabled = true;
+  const msgs = ['🌐 正在爬取 Docker 官方镜像库…','🐧 正在爬取 LinuxServer 仓库…','🔥 正在爬取 Hotio 仓库…','⚡ 正在爬取 Quay.io…','🧮 正在合并去重…'];
+  let mi = 0;
+  $('crawlLabel').textContent = msgs[0];
+  const timer = setInterval(()=>{ mi = (mi+1)%msgs.length; $('crawlLabel').textContent = msgs[mi]; }, 6000);
+  const t0 = Date.now();
+  try{
+    const res = await api('crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const secs = Math.round((Date.now()-t0)/1000);
+    toast(`✅ ${res.message}(耗时 ${secs}s):官方 ${res.official} / LinuxServer ${res.linuxserver} / Hotio ${res.hotio} / Quay ${res.quay}`, 'ok');
+    curCat = 'all'; curQ = ''; $('search').value = '';
+    await loadStore(); loadMeta();
+  }catch(e){
+    toast('❌ 爬取失败: '+e.message, 'bad');
+  }finally{
+    clearInterval(timer);
+    btn.disabled = false;
+    $('crawlLabel').textContent = '爬取全网镜像';
+  }
+}
+
+/* ---------- 容器列表(宝塔风格) ---------- */
+async function loadContainers(){
+  try{
+    containers = await api('containers');
+    const running = containers.filter(c=>c.state==='running').length;
+    $('cntContainers').style.display='';
+    $('cntContainers').textContent = containers.length;
+    $('containerSummary').innerHTML = `📦 共 ${containers.length} 个容器,<span style="color:var(--ok)">${running} 运行中</span>,${containers.length-running} 已停止`;
+    $('containerBody').innerHTML = containers.map(c=>`
+      <tr>
+        <td class="cname">${esc(c.name)}${c.fromApp?' <span class="tag" title="由软件商店部署">商店</span>':''}<div class="sub">${esc(c.id)}</div></td>
+        <td class="imgcell" title="${esc(c.image)}">${esc(c.image)}</td>
+        <td><span class="state ${esc(c.state)}"><span class="sd"></span>${esc(c.state==='running'?'运行中':c.state==='exited'?'已停止':c.state)}</span><div class="sub" style="font-size:11px;color:var(--muted)">${esc(c.status)}</div></td>
+        <td class="ports-cell">${c.ports.length? c.ports.map(p=>esc(p)).join('<br>') : '—'}</td>
+        <td style="font-size:12px;color:var(--muted)">${esc(c.created)}</td>
+        <td>
+          <div class="btns">
+            ${c.state==='running'
+              ? `<button class="btn sm" onclick="cAction('${esc(c.name)}','stop')">停止</button>`
+              : `<button class="btn sm pri" onclick="cAction('${esc(c.name)}','start')">启动</button>`}
+            <button class="btn sm" onclick="cAction('${esc(c.name)}','restart')">重启</button>
+            <button class="btn sm" onclick="showContainerLogs('${esc(c.name)}')">日志</button>
+            <button class="btn sm" onclick="showDetail('${esc(c.name)}')">详情</button>
+            <button class="btn sm danger" onclick="cRemove('${esc(c.name)}')">删除</button>
+          </div>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="6"><div class="empty">还没有容器,去商店或线上镜像页创建一个吧</div></td></tr>';
+  }catch(e){
+    $('containerBody').innerHTML = `<tr><td colspan="6"><div class="empty">${esc(e.message)}</div></td></tr>`;
+  }
+}
+async function cAction(name, action){
+  try{
+    toast(await api('container/action', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, action})}), 'ok');
+    loadContainers();
+  }catch(e){ toast('❌ '+e.message, 'bad'); }
+}
+function cRemove(name){
+  if(!confirm(`确定删除容器 ${name}?\n(挂载卷中的数据会保留,但容器内数据将丢失)`)) return;
+  cAction(name, 'remove');
+}
+
+/* ---------- 容器日志(宝塔风格) ---------- */
+async function showContainerLogs(name){
+  curLogName = name;
+  $('logTitle').textContent = name;
+  $('logMask').classList.add('show');
+  loadContainerLogs(name);
+}
+async function loadContainerLogs(name){
+  $('logBox').textContent = '加载中…';
+  try{
+    const tail = $('logTail').value || '300';
+    const logs = await api('container/logs?name='+encodeURIComponent(name)+'&tail='+tail);
+    $('logBox').textContent = logs || '(无日志输出)';
+    $('logBox').scrollTop = $('logBox').scrollHeight;
+  }catch(e){
+    $('logBox').textContent = '❌ '+e.message;
+  }
+}
+
+/* ---------- 容器详情(宝塔风格) ---------- */
+async function showDetail(name){
+  $('detailTitle').textContent = name;
+  $('detailMask').classList.add('show');
+  $('detailBody').innerHTML = '加载中…';
+  try{
+    const d = await api('inspect?name='+encodeURIComponent(name));
+    const created = d.created ? new Date(d.created).toLocaleString('zh-CN') : '—';
+    $('detailBody').innerHTML = `
+      <div class="sec"><div class="sec-t">📋 基本信息</div><div class="sec-b"><div class="kv-grid">
+        <div class="k">容器名</div><div>${esc(d.name)}</div>
+        <div class="k">容器 ID</div><div style="font-size:11px;word-break:break-all">${esc(d.id)}</div>
+        <div class="k">镜像</div><div>${esc(d.image)}</div>
+        <div class="k">状态</div><div><span class="state ${esc(d.state)}"><span class="sd"></span>${esc(d.state)}</span></div>
+        <div class="k">创建时间</div><div>${esc(created)}</div>
+        <div class="k">重启策略</div><div>${esc(d.restartPolicy||'no')}</div>
+        <div class="k">网络</div><div>${esc(d.network||'—')}${d.ip?' ('+esc(d.ip)+')':''}</div>
+        <div class="k">启动命令</div><div>${esc(d.command||'—')}</div>
+      </div></div></div>
+      <div class="sec"><div class="sec-t">🔌 端口映射</div><div class="sec-b">${d.ports.length? d.ports.map(p=>`<span class="tag">宿主 ${esc(p.host)} → 容器 ${esc(p.container)}</span>`).join('') : '—'}</div></div>
+      <div class="sec"><div class="sec-t">💾 数据卷</div><div class="sec-b">${d.volumes.length? d.volumes.map(v=>`<span class="tag">${esc(v.host)} → ${esc(v.container)}</span>`).join('') : '—'}</div></div>
+      <div class="sec"><div class="sec-t">⚙️ 环境变量 (${d.env.length})</div><div class="sec-b">${d.env.length? d.env.map(e=>`<span class="tag">${esc(e.name)}=${esc(e.value)}</span>`).join('') : '—'}</div></div>`;
+  }catch(e){
+    $('detailBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+
+/* ---------- 本地镜像(宝塔风格) ---------- */
+async function loadImages(){
+  try{
+    images = await api('images');
+    $('cntImages').style.display='';
+    $('cntImages').textContent = images.length;
+    $('imageSummary').innerHTML = `🖼️ 本地共 ${images.length} 个镜像`;
+    $('imageBody').innerHTML = images.map(im=>`
+      <tr>
+        <td class="cname" title="${esc(im.repo)}">${esc(im.repo)}</td>
+        <td style="font-size:12px;color:var(--muted)">${esc(im.tag)}</td>
+        <td style="font-size:12px">${esc(im.size)}</td>
+        <td style="font-size:12px;color:var(--muted)">${esc(im.created)}</td>
+        <td>
+          <div class="btns">
+            <button class="btn sm pri" onclick="deployFromImage('${esc(im.repo)}:${esc(im.tag)}')">创建容器</button>
+            <button class="btn sm danger" onclick="removeImage('${esc(im.id)}','${esc(im.repo)}:${esc(im.tag)}')">删除</button>
+          </div>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="5"><div class="empty">暂无本地镜像,去线上镜像页搜索拉取</div></td></tr>';
+  }catch(e){
+    $('imageBody').innerHTML = `<tr><td colspan="5"><div class="empty">${esc(e.message)}</div></td></tr>`;
+  }
+}
+async function removeImage(id, name){
+  if(!confirm(`确定删除镜像 ${name}?`)) return;
+  try{
+    toast(await api('image/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})}), 'ok');
+    loadImages();
+  }catch(e){ toast('❌ '+e.message, 'bad'); }
+}
+function deployFromImage(img){
+  // 跳到自定义创建弹窗,预填镜像名
+  document.querySelectorAll('.navtab').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-nav="containers"]').classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('show'));
+  $('page-containers').classList.add('show');
+  openCustomDeploy(img);
+}
+
+/* ---------- 线上镜像搜索(宝塔风格) ---------- */
+async function searchOnline(){
+  const q = $('onlineSearch').value.trim();
+  if(!q){ toast('请输入搜索关键词', 'bad'); return; }
+  $('onlineResult').innerHTML = '<div class="empty">🔍 搜索中…</div>';
+  try{
+    const res = await api('image/search?q='+encodeURIComponent(q));
+    const list = res.results || [];
+    $('onlineResult').innerHTML = `
+      <div class="meta-line" style="margin-bottom:10px">来源:${res.source==='dockerhub'?'Docker Hub':'内置商店匹配'} · 共 ${list.length} 个结果</div>
+      <div class="table-wrap"><table class="tbl">
+      <thead><tr><th>镜像名称</th><th>描述</th><th style="width:80px">Stars</th><th style="width:70px">官方</th><th style="text-align:right;width:190px">操作</th></tr></thead>
+      <tbody>${list.map(it=>`
+        <tr>
+          <td class="cname" style="font-size:12px">${esc(it.name)}</td>
+          <td style="font-size:12px;color:var(--muted);max-width:300px">${esc(it.description||'—')}</td>
+          <td style="font-size:12px">⭐ ${it.stars||0}</td>
+          <td>${it.official?'<span class="tag" style="background:#e8f2ea;color:var(--ok)">官方</span>':'—'}</td>
+          <td><div class="btns">
+            <button class="btn sm pri" onclick="deployFromImage('${esc(it.name)}')">部署</button>
+            <button class="btn sm" onclick="pullImage('${esc(it.name)}')">拉取</button>
+          </div></td>
+        </tr>`).join('') || '<tr><td colspan="5"><div class="empty">没有找到匹配的镜像</div></td></tr>'}
+      </tbody></table></div>`;
+  }catch(e){
+    $('onlineResult').innerHTML = `<div class="empty">❌ ${esc(e.message)}</div>`;
+  }
+}
+async function pullImage(img){
+  try{
+    const res = await api('pull', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({image:img})});
+    toast('⏳ 已开始拉取 '+img, 'ok');
+    // 轮询拉取进度
+    let n = 0;
+    const poll = async ()=>{
+      try{
+        const t = await api('deploy/status?id='+encodeURIComponent(res.taskId));
+        if(t.status==='done'){ toast('✅ 镜像拉取成功: '+img, 'ok'); loadImages(); return; }
+        if(t.status==='error'){ toast('❌ 拉取失败: '+(t.error||''), 'bad'); return; }
+        if(++n > 300){ toast('❌ 拉取超时', 'bad'); return; }
+        setTimeout(poll, 3000);
+      }catch(e){}
+    };
+    setTimeout(poll, 2000);
+  }catch(e){ toast('❌ '+e.message, 'bad'); }
+}
+
+/* ---------- KV 行编辑 ---------- */
+function kvRow(k, v){
+  return `<div class="kv-row"><div><input value="${esc(k)}" data-k></div><div><input value="${esc(v)}" data-v></div></div>`;
+}
+function addKV(cid){
+  const isEnv = cid.endsWith('Env');
+  $(cid).insertAdjacentHTML('beforeend', kvRow(isEnv?'':'', ''));
+}
+function readKV(containerId){
+  return [...$(containerId).querySelectorAll('.kv-row')].map(r=>({
+    [containerId==='dEnv'||containerId==='cEnv'?'name':'host']: r.querySelector('[data-k]').value.trim(),
+    [containerId==='dEnv'||containerId==='cEnv'?'value':'container']: r.querySelector('[data-v]').value.trim()
+  })).filter(x=>x.name!==undefined && x.name!=='' || x.host!==undefined && x.host!=='');
+}
+
+/* ---------- 部署(商店应用) ---------- */
+let curApp = null;
+function openDeploy(appId){
+  const a = store.apps.find(x=>x.id===appId);
+  if(!a) return;
+  curApp = a;
+  $('dIcon').innerHTML = `<div class="logo-tile" style="background:${esc(a.color||'#8b6f47')};width:36px;height:36px">${logoInner(a)}</div>`;
+  $('dName').textContent = a.name;
+  $('dDesc').textContent = a.description;
+  $('dVersion').innerHTML = a.versions.map(v=>`<option value="${esc(v.version)}">${esc(v.version)}</option>`).join('');
+  $('dName2').value = a.id;
+  fillVersionForm(a.versions[0]);
+  $('dVersion').onchange = ()=> fillVersionForm(a.versions.find(v=>v.version===$('dVersion').value));
+  $('deployMask').classList.add('show');
+}
+function fillVersionForm(v){
+  $('dPorts').innerHTML = (v.ports||[]).map(p=>kvRow(p.host,p.container)).join('') || '<div style="padding:8px 10px;font-size:12px;color:var(--muted)">host 网络模式或无端口,可点下方添加</div>';
+  $('dVols').innerHTML = (v.volumes||[]).map(p=>kvRow(p.host,p.container)).join('') || '<div style="padding:8px 10px;font-size:12px;color:var(--muted)">无数据卷,可点下方添加</div>';
+  $('dEnv').innerHTML = (v.env||[]).map(e=>kvRow(e.name,e.value)).join('') || '<div style="padding:8px 10px;font-size:12px;color:var(--muted)">无环境变量,可点下方添加</div>';
+}
+function closeDeploy(){ $('deployMask').classList.remove('show'); }
+
+/* 通用异步任务轮询(部署/拉取共用) */
+function pollTask(taskId, onDone){
+  let n = 0;
+  const poll = async ()=>{
+    try{
+      const t = await api('deploy/status?id='+encodeURIComponent(taskId));
+      if(t.stage) $('deployTxt').textContent = t.stage;
+      if(t.status === 'done'){
+        $('deploying').classList.remove('show');
+        $('dSubmit').disabled = false;
+        $('cSubmit').disabled = false;
+        if(onDone) onDone(t); else toast('✅ '+(t.stage||'完成')+(t.container?': '+t.container:'')+(t.access?',访问 '+t.access:''), 'ok');
+        return;
+      }
+      if(t.status === 'error'){
+        $('deploying').classList.remove('show');
+        $('dSubmit').disabled = false;
+        $('cSubmit').disabled = false;
+        toast('❌ '+(t.stage||'失败')+': '+(t.error||'未知错误'), 'bad');
+        return;
+      }
+      if(++n > 300){
+        $('deploying').classList.remove('show');
+        $('dSubmit').disabled = false;
+        $('cSubmit').disabled = false;
+        toast('❌ 超时(10 分钟),请检查网络和 Docker 状态', 'bad');
+        return;
+      }
+      setTimeout(poll, 2000);
+    }catch(e){
+      $('deploying').classList.remove('show');
+      $('dSubmit').disabled = false;
+      $('cSubmit').disabled = false;
+      toast('❌ 查询任务状态失败: '+e.message, 'bad');
+    }
+  };
+  setTimeout(poll, 1000);
+}
+
+async function doDeploy(){
+  if(!curApp) return;
+  const body = {
+    appId: curApp.id,
+    version: $('dVersion').value,
+    name: $('dName2').value.trim(),
+    ports: readKV('dPorts'),
+    volumes: readKV('dVols'),
+    env: readKV('dEnv')
+  };
+  for(const e of body.env){
+    if(/password|secret/i.test(e.name) && /change-me|your-strong/.test(e.value)){
+      if(!confirm(`环境变量 ${e.name} 仍是默认弱密码,建议先修改。\n\n仍要继续部署吗?`)) return;
+      break;
+    }
+  }
+  $('deployMask').classList.remove('show');
+  $('deploying').classList.add('show');
+  $('dSubmit').disabled = true;
+  $('deployTxt').textContent = '正在拉取镜像,可能需要几分钟…';
+  try{
+    const res = await api('deploy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if(res.taskId){
+      pollTask(res.taskId, async t=>{
+        toast(`✅ 部署成功: ${t.container}` + (t.access?`,访问 ${t.access}`:''), 'ok');
+        await loadStore(); loadContainers();
+      });
+    }else{
+      $('deploying').classList.remove('show');
+      toast(`✅ ${res.message}: ${res.container}`, 'ok');
+      await loadStore(); loadContainers();
+    }
+  }catch(e){
+    $('deploying').classList.remove('show');
+    $('dSubmit').disabled = false;
+    toast('❌ 部署失败: '+e.message, 'bad');
+  }
+}
+
+/* ---------- 自定义镜像创建容器(宝塔风格) ---------- */
+function openCustomDeploy(presetImage){
+  $('cImage').value = presetImage || '';
+  $('cName').value = '';
+  $('cPorts').innerHTML = '';
+  $('cVols').innerHTML = '';
+  $('cEnv').innerHTML = '';
+  $('customMask').classList.add('show');
+}
+async function doCustomDeploy(){
+  const img = $('cImage').value.trim();
+  if(!img){ toast('请输入镜像名', 'bad'); return; }
+  const body = {
+    appId: '__custom__',
+    image: img,
+    name: $('cName').value.trim(),
+    ports: readKV('cPorts'),
+    volumes: readKV('cVols'),
+    env: readKV('cEnv')
+  };
+  $('customMask').classList.remove('show');
+  $('deploying').classList.add('show');
+  $('cSubmit').disabled = true;
+  $('deployTxt').textContent = '正在拉取镜像 '+img+',可能需要几分钟…';
+  try{
+    const res = await api('deploy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if(res.taskId){
+      pollTask(res.taskId, async t=>{
+        toast(`✅ 容器创建成功: ${t.container}` + (t.access?`,访问 ${t.access}`:''), 'ok');
+        loadContainers();
+      });
+    }
+  }catch(e){
+    $('deploying').classList.remove('show');
+    $('cSubmit').disabled = false;
+    toast('❌ 创建失败: '+e.message, 'bad');
+  }
+}
+
+/* ---------- 初始化 ---------- */
+$('search').oninput = e=>{ curQ = e.target.value; renderGrid(); };
+$('deployMask').onclick = e=>{ if(e.target===e.currentTarget) closeDeploy(); };
+$('customMask').onclick = e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('show'); };
+$('logMask').onclick = e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('show'); };
+$('detailMask').onclick = e=>{ if(e.target===e.currentTarget) e.currentTarget.classList.remove('show'); };
+
+loadStatus(); loadStore(); loadMeta(); loadContainers(); loadImages();
+// 容器状态 30 秒自动刷新(仅当停留在容器页)
+setInterval(()=>{ if(curNav==='containers') loadContainers(); }, 30000);
+</script>
+</body>
+</html>

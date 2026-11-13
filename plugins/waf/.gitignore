@@ -1,0 +1,9 @@
+# 构建产物
+bin/
+*.tar.gz
+
+# 运行时数据
+events.jsonl
+events.jsonl.*
+secret.key
+config.json

@@ -1,0 +1,14 @@
+# 构建产物
+/bin/
+/dist/
+/internal/embed/plugins/
+
+# 本地开发数据
+/dev-home/
+/tmp/
+*.log
+
+# 编辑器 / 系统文件
+.idea/
+.vscode/
+.DS_Store

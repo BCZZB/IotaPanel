@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+name: waf
+title: 微盾 WAF
+version: 0.1.0
+author: IotaPanel 社区
+description: 雷池式轻量 WAF：低占用探针常驻，检测到可疑请求自动升级全量防护（规则引擎 + CC 防护 + 人机验证）
+language: go
+command: bin/waf
+bind: 127.0.0.1
+keepalive: true
+menus:
+  - title: 微盾 WAF
+    icon: 🛡️
+    path: /
+    section: tools

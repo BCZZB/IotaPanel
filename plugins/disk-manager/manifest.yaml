@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 plainfate <https://github.com/plainfate>
+# 插件元信息（manifest.yaml）
+name: disk-manager
+title: 磁盘管理
+version: 0.2.0
+author: IotaPanel 社区
+description: 磁盘容量总览、占用排行、大文件检测与文件访问次数统计
+language: go
+command: bin/disk-manager
+bind: 127.0.0.1
+keepalive: true
+menus:
+  - title: 磁盘管理
+    icon: 💾
+    path: /
+    section: system

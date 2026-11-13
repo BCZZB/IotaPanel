@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<!--
+  磁盘管理插件前端（v0.2.0 重构）
+  设计原则：
+    1. 与面板同源同肤：完整继承 IotaPanel 莫奈配色（暖米底 + 鼠尾草绿），
+       读取面板 localStorage['mp-theme'] 自动跟随 4 套主题（sage/ocean/rose/lilac）
+    2. 布局参照宝塔面板：顶部磁盘环形图卡片 / 标签页 / 面包屑 / 进度条 / 干净表格
+    3. 交互参照 ncdu：单遍扫描建树后，任意层级钻取零重扫（树缓存）
+  AJAX 全部使用相对路径 api/...（经面板网关转发为 /p/disk-manager/api/...）
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>磁盘管理</title>
+<style>
+/* ========== 主题变量（与面板 app.css 完全一致，随面板主题联动） ========== */
+:root {
+  --bg: #f6f4ef;  --bg-2: #efece3;  --panel: #ffffff;  --panel-2: #f1f2ec;
+  --border: #e3ddd0;  --text: #3d3a33;  --muted: #8b8678;
+  --accent: #7d9b76;  --accent-hi: #5e7f58;  --accent-soft: rgba(125,155,118,.13);
+  --ok: #7fa05e;  --warn: #d9a441;  --danger: #c2715f;
+  --radius: 12px;  --shadow: 0 6px 24px rgba(92,82,60,.09);
+}
+body[data-theme="ocean"] {
+  --bg:#f2f5f7; --bg-2:#e9eef2; --panel-2:#eef3f6; --border:#dde4e9; --text:#33393f; --muted:#7e8a94;
+  --accent:#7d9db5; --accent-hi:#5b7f99; --accent-soft:rgba(125,157,181,.13);
+  --ok:#6f9a8e; --warn:#cfa94b; --danger:#b9796b; --shadow:0 6px 24px rgba(60,74,88,.09);
+}
+body[data-theme="rose"] {
+  --bg:#faf5f2; --bg-2:#f4ebe6; --panel-2:#f8f0ec; --border:#e8dcd5; --text:#443a36; --muted:#9a847c;
+  --accent:#b5737a; --accent-hi:#94555c; --accent-soft:rgba(181,115,122,.13);
+  --ok:#8fa06b; --warn:#d9a441; --danger:#c46a5a; --shadow:0 6px 24px rgba(110,70,60,.09);
+}
+body[data-theme="lilac"] {
+  --bg:#f6f4f9; --bg-2:#eeebf3; --panel-2:#f3f0f8; --border:#e3deec; --text:#3b3745; --muted:#8b839a;
+  --accent:#8d7ba8; --accent-hi:#6d5c8c; --accent-soft:rgba(141,123,168,.13);
+  --ok:#7a9b7a; --warn:#d5a24e; --danger:#bd7a70; --shadow:0 6px 24px rgba(70,60,92,.09);
+}
+
+/* ========== 基础（与面板同款字体/按钮/输入框） ========== */
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,-apple-system,sans-serif;
+  font-size:14px; line-height:1.6;
+}
+.wrap { max-width:1080px; margin:0 auto; padding:24px 26px 40px; }
+
+/* 页头 */
+.hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-wrap:wrap; gap:10px; }
+.hd h1 { font-size:19px; font-weight:700; display:flex; align-items:center; gap:8px; }
+.hd .sub { color:var(--muted); font-size:12.5px; margin-bottom:18px; }
+.badge-live {
+  font-size:11px; padding:2px 10px; border-radius:99px; font-weight:500;
+  background:var(--accent-soft); color:var(--accent-hi); border:1px solid rgba(125,155,118,.35);
+}
+.hd-actions { display:flex; gap:8px; }
+
+/* 按钮（面板同款） */
+.btn {
+  display:inline-flex; align-items:center; gap:6px; padding:7px 16px;
+  border:1px solid var(--border); border-radius:10px; background:var(--panel); color:var(--text);
+  cursor:pointer; font-size:13px; transition:all .15s ease;
+}
+.btn:hover { border-color:var(--accent); color:var(--accent-hi); }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.btn-primary:hover { background:var(--accent-hi); color:#fff; }
+.btn-sm { padding:3px 10px; font-size:12px; }
+
+/* ========== 磁盘总览卡片（宝塔式环形图） ========== */
+.disk-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin-bottom:20px; }
+.disk-card {
+  background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px; display:flex; gap:18px; align-items:center;
+  box-shadow:0 2px 10px rgba(92,82,60,.05);
+}
+.donut-wrap { position:relative; width:92px; height:92px; flex-shrink:0; }
+.donut-wrap svg { width:92px; height:92px; transform:rotate(-90deg); }
+.donut-wrap .ring-bg { fill:none; stroke:var(--bg-2); stroke-width:9; }
+.donut-wrap .ring { fill:none; stroke-width:9; stroke-linecap:round; transition:stroke-dasharray .6s ease; }
+.donut-center {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; line-height:1.25;
+}
+.donut-center b { font-size:15px; }
+.donut-center span { font-size:10.5px; color:var(--muted); }
+.disk-info { flex:1; min-width:0; }
+.disk-mount { font-weight:700; font-size:14.5px; display:flex; align-items:center; gap:8px; }
+.disk-mount .fs-tag {
+  font-size:10.5px; font-weight:500; color:var(--muted);
+  background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding:0 6px;
+}
+.disk-stats { margin-top:8px; }
+.disk-stats .kv { display:flex; justify-content:space-between; font-size:12.5px; padding:2.5px 0; }
+.disk-stats .kv span { color:var(--muted); }
+
+/* ========== 标签页 ========== */
+.tabs {
+  display:inline-flex; background:var(--panel); border:1px solid var(--border);
+  border-radius:12px; padding:4px; gap:2px; margin-bottom:16px;
+  box-shadow:0 2px 10px rgba(92,82,60,.05);
+}
+.tab-btn {
+  padding:7px 18px; border-radius:9px; border:none; background:transparent;
+  color:var(--muted); cursor:pointer; font-size:13.5px; transition:all .15s;
+}
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { background:var(--accent-soft); color:var(--accent-hi); font-weight:600; }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; animation:fadeIn .2s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+/* ========== 通用卡片 ========== */
+.card {
+  background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px; box-shadow:0 2px 10px rgba(92,82,60,.05); margin-bottom:16px;
+}
+.card h3 { font-size:13.5px; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+.card h3 small { color:var(--muted); font-weight:400; font-size:12px; }
+
+/* 工具栏 */
+.toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.crumbs { display:flex; flex-wrap:wrap; align-items:center; gap:2px; font-size:13.5px; min-width:0; }
+.crumb { padding:4px 9px; border-radius:8px; cursor:pointer; color:var(--muted); white-space:nowrap; }
+.crumb:hover { background:var(--panel-2); color:var(--text); }
+.crumb.cur { color:var(--accent-hi); font-weight:600; background:var(--accent-soft); }
+.crumb-sep { color:var(--muted); opacity:.45; user-select:none; }
+
+/* 扫描控制 */
+.scan-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+.input {
+  padding:8px 12px; background:var(--panel); color:var(--text);
+  border:1px solid var(--border); border-radius:10px; outline:none; font-size:13px;
+  transition:border-color .15s, box-shadow .15s; min-width:220px;
+  font-family:ui-monospace,Consolas,monospace;
+}
+.input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.quick-tag {
+  padding:4px 12px; border-radius:99px; border:1px solid var(--border);
+  background:var(--panel-2); color:var(--muted); font-size:12px; cursor:pointer; transition:all .15s;
+}
+.quick-tag:hover { color:var(--accent-hi); border-color:var(--accent); }
+
+/* 扫描进度（ncdu/gdu 式实时计数） */
+.progress-box { display:none; }
+.progress-box.on { display:block; animation:fadeIn .2s ease; }
+.pbar { height:8px; background:var(--bg-2); border-radius:99px; overflow:hidden; }
+.pbar i {
+  display:block; height:100%; width:36%; border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--ok));
+  animation:slide 1.1s ease-in-out infinite;
+}
+@keyframes slide { 0%{margin-left:-36%} 100%{margin-left:100%} }
+.pstats { display:flex; gap:16px; flex-wrap:wrap; color:var(--muted); font-size:12.5px; margin-top:8px; }
+.pstats b { color:var(--accent-hi); font-weight:600; }
+.pdone { color:var(--ok); font-size:12.5px; margin-top:8px; display:flex; align-items:center; gap:6px; }
+.pdone::before { content:"✓"; }
+
+/* ========== 表格（面板 portmap 同款） ========== */
+table.tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.tbl th, .tbl td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+.tbl th { color:var(--muted); font-weight:500; font-size:12px; }
+.tbl tbody tr { transition:background .1s; }
+.tbl tbody tr:hover td { background:var(--panel-2); }
+.tbl tr.rowlink { cursor:pointer; }
+.num { text-align:right; font-family:ui-monospace,Consolas,monospace; white-space:nowrap; }
+.mono { font-family:ui-monospace,Consolas,monospace; }
+.cell-name { display:flex; align-items:center; gap:8px; min-width:0; }
+.cell-name .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:320px; }
+.cell-name .arrow { color:var(--muted); font-size:12px; margin-left:auto; }
+tr.rowlink:hover .cell-name .arrow { color:var(--accent-hi); }
+
+/* 占比条 */
+.bar-cell { display:flex; align-items:center; gap:8px; min-width:150px; }
+.bar-track { flex:1; height:6px; background:var(--bg-2); border-radius:99px; overflow:hidden; }
+.bar-track i { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent),var(--ok)); transition:width .4s ease; }
+.bar-pct { font-size:11.5px; color:var(--muted); min-width:44px; text-align:right; font-family:ui-monospace,Consolas,monospace; }
+
+/* 汇总行 */
+.summary { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:12.5px; margin-top:12px; }
+.summary b { color:var(--text); font-weight:600; }
+.warn-chip {
+  display:inline-flex; align-items:center; gap:4px; font-size:11.5px;
+  color:var(--warn); background:rgba(217,164,65,.12); border:1px solid rgba(217,164,65,.35);
+  border-radius:99px; padding:1px 10px;
+}
+
+/* 空状态 */
+.empty { color:var(--muted); text-align:center; padding:26px 10px; font-size:13px; }
+.empty .big-ico { font-size:26px; display:block; margin-bottom:6px; opacity:.6; }
+
+/* 访问统计条形图 */
+.acc-row { display:flex; align-items:center; gap:10px; padding:6px 0; }
+.acc-path {
+  min-width:220px; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-family:ui-monospace,Consolas,monospace; font-size:12px;
+}
+.acc-track { flex:1; height:14px; background:var(--bg-2); border-radius:99px; overflow:hidden; }
+.acc-track i { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent),var(--ok)); transition:width .4s ease; }
+.acc-count { min-width:64px; text-align:right; font-family:ui-monospace,Consolas,monospace; font-size:12.5px; color:var(--accent-hi); font-weight:600; }
+
+/* loading */
+.spin { display:inline-block; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* 大文件类型图标 */
+.ft-ico { font-size:15px; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 页头 ===== -->
+  <div class="hd">
+    <h1>💾 磁盘管理 <span class="badge-live">● 极省内存模式</span></h1>
+    <div class="hd-actions">
+      <button class="btn btn-sm" id="btn-refresh-disks">刷新磁盘</button>
+    </div>
+  </div>
+  <div class="sub">单遍扫描建树 · 并行遍历 · 硬链接去重 · 缓存钻取零重扫 · 探针常驻约 3MB</div>
+
+  <!-- ===== 磁盘总览（环形图卡片） ===== -->
+  <div class="disk-grid" id="disk-grid"></div>
+
+  <!-- ===== 标签页 ===== -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="space">📁 空间分析</button>
+    <button class="tab-btn" data-tab="big">🗂️ 大文件</button>
+    <button class="tab-btn" data-tab="access">📈 访问统计</button>
+  </div>
+
+  <!-- ===== Tab 1: 空间分析 ===== -->
+  <section class="tab-panel active" id="tab-space">
+    <div class="card">
+      <div class="toolbar">
+        <div class="crumbs" id="crumbs"><span class="crumb cur">/</span></div>
+        <button class="btn btn-sm" id="btn-up" style="display:none">↑ 上级目录</button>
+      </div>
+      <div class="scan-row">
+        <input class="input" id="scan-root" value="/" placeholder="扫描根目录，如 / 或 /var">
+        <button class="btn btn-primary" id="btn-scan">开始扫描</button>
+        <span class="quick-tag" data-root="/">全盘 /</span>
+        <span class="quick-tag" data-root="/var">/var</span>
+        <span class="quick-tag" data-root="/data">/data</span>
+        <span class="quick-tag" data-root="/www">/www</span>
+      </div>
+      <div class="progress-box" id="progress-box">
+        <div class="pbar"><i></i></div>
+        <div class="pstats" id="p-stats">
+          <span>文件 <b id="p-files">0</b></span>
+          <span>目录 <b id="p-dirs">0</b></span>
+          <span>已扫描 <b id="p-bytes">0 B</b></span>
+          <span>耗时 <b id="p-elapsed">0s</b></span>
+        </div>
+        <div class="pdone" id="p-done" style="display:none"></div>
+      </div>
+      <table class="tbl">
+        <thead><tr>
+          <th>名称</th><th style="width:26%">占当前目录比例</th>
+          <th class="num">大小</th><th class="num">文件数</th><th class="num">目录数</th><th style="width:30px"></th>
+        </tr></thead>
+        <tbody id="space-body">
+          <tr><td colspan="6"><div class="empty"><span class="big-ico">🛰️</span>正在初始化引擎…</div></td></tr>
+        </tbody>
+      </table>
+      <div class="summary" id="space-summary"></div>
+    </div>
+  </section>
+
+  <!-- ===== Tab 2: 大文件 ===== -->
+  <section class="tab-panel" id="tab-big">
+    <div class="card">
+      <h3>🗂️ 体积最大的文件 <small id="big-hint">来自空间分析扫描结果（Top 候选堆）</small></h3>
+      <div class="scan-row">
+        <input class="input" id="big-root" value="/" placeholder="限定目录前缀，如 /var">
+        <button class="btn btn-primary" id="big-run">查看大文件</button>
+      </div>
+      <table class="tbl">
+        <thead><tr>
+          <th style="width:36px">#</th><th>文件</th><th style="width:22%">相对占比</th><th class="num">大小</th>
+        </tr></thead>
+        <tbody id="big-body">
+          <tr><td colspan="4"><div class="empty"><span class="big-ico">🗂️</span>完成空间扫描后自动生成（也可点上方按钮）</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== Tab 3: 访问统计 ===== -->
+  <section class="tab-panel" id="tab-access">
+    <div class="card">
+      <h3>📈 文件访问统计 <small>按请求路径聚合访问次数（自动探测 nginx / apache / 面板日志）</small></h3>
+      <div class="scan-row">
+        <input class="input" id="log-path" value="" placeholder="访问日志路径（自动探测）" style="min-width:280px">
+        <input class="input" id="log-filter" placeholder="路径过滤（可选）" style="min-width:160px">
+        <button class="btn btn-primary" id="access-run">统计</button>
+      </div>
+      <div class="scan-row" id="log-tags" style="display:none"></div>
+      <div id="access-body">
+        <div class="empty"><span class="big-ico">📊</span>点击「统计」查看访问次数分布</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ========== 主题跟随面板（同源共享 localStorage） ========== */
+const THEMES = ['sage','ocean','rose','lilac'];
+function applyTheme() {
+  try {
+    const t = localStorage.getItem('mp-theme') || 'sage';
+    document.body.dataset.theme = THEMES.includes(t) ? t : 'sage';
+  } catch (e) { document.body.dataset.theme = 'sage'; }
+}
+applyTheme();
+setInterval(applyTheme, 1500); // 面板切主题后 1.5s 内自动跟随
+
+/* ========== 工具 ========== */
+function fmtSize(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n/1048576).toFixed(1) + ' MB';
+  if (n < 1099511627776) return (n/1073741824).toFixed(2) + ' GB';
+  return (n/1099511627776).toFixed(2) + ' TB';
+}
+const fmtInt = (n) => Number(n||0).toLocaleString('en-US');
+const fmtSec = (ms) => { const s=Math.round(ms/1000); return s<60 ? s+'s' : Math.floor(s/60)+'m'+(s%60)+'s'; };
+const pctColor = (p) => p<60 ? 'var(--ok)' : (p<85 ? 'var(--warn)' : 'var(--danger)');
+
+async function jget(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function jpost(url) {
+  const r = await fetch(url, { method:'POST' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+/* ========== 磁盘总览（环形图） ========== */
+function donutSVG(pct) {
+  const r = 38, c = 2 * Math.PI * r;
+  const dash = (Math.min(100, pct) / 100) * c;
+  const col = pctColor(pct);
+  return `<svg viewBox="0 0 92 92">
+    <circle class="ring-bg" cx="46" cy="46" r="${r}"></circle>
+    <circle class="ring" cx="46" cy="46" r="${r}" style="stroke:${col};stroke-dasharray:${dash.toFixed(1)} ${c.toFixed(1)}"></circle>
+  </svg>`;
+}
+async function loadDisks() {
+  const g = $('disk-grid');
+  g.innerHTML = '<div class="card" style="grid-column:1/-1"><div class="empty"><span class="spin"></span> 加载中…</div></div>';
+  try {
+    const disks = await jget('api/disks');
+    g.innerHTML = '';
+    if (!disks || !disks.length) {
+      g.innerHTML = '<div class="card" style="grid-column:1/-1"><div class="empty">未检测到磁盘挂载点</div></div>';
+      return;
+    }
+    disks.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'disk-card';
+      el.innerHTML = `
+        <div class="donut-wrap">${donutSVG(d.percent)}
+          <div class="donut-center"><b style="color:${pctColor(d.percent)}">${d.percent.toFixed(1)}%</b><span>已用</span></div>
+        </div>
+        <div class="disk-info">
+          <div class="disk-mount">💽 ${esc(d.mount)} <span class="fs-tag">${esc(d.fs)}</span></div>
+          <div class="disk-stats">
+            <div class="kv"><span>已用</span><b>${fmtSize(d.used)}</b></div>
+            <div class="kv"><span>可用</span><b>${fmtSize(d.free)}</b></div>
+            <div class="kv"><span>总量</span><b>${fmtSize(d.total)}</b></div>
+          </div>
+        </div>`;
+      // 点击磁盘卡片 → 直接以该挂载点为根扫描
+      el.style.cursor = 'pointer';
+      el.onclick = () => { $('scan-root').value = d.mount; startScan(d.mount); switchTab('space'); };
+      g.appendChild(el);
+    });
+  } catch (e) {
+    g.innerHTML = '<div class="card" style="grid-column:1/-1"><div class="empty">磁盘信息加载失败：' + esc(e.message) + '</div></div>';
+  }
+}
+$('btn-refresh-disks').onclick = loadDisks;
+
+/* ========== 标签页 ========== */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  if (name === 'big') loadBig();
+  if (name === 'space' && !spaceLoaded) ensureTree();
+}
+document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+/* ========== 空间分析：扫描 + 树钻取 ========== */
+let curPath = '/';      // 当前浏览路径
+let scanRoot = '/';     // 当前扫描根
+let spaceLoaded = false;
+let pollTimer = null;
+let scanning = false;
+
+function renderCrumbs() {
+  const c = $('crumbs');
+  c.innerHTML = '';
+  const base = scanRoot === '/' ? [] : scanRoot.slice(1).split('/');
+  const segs = [['/', '/']].concat(
+    base.map((s, i) => ['/' + base.slice(0, i + 1).join('/'), s])
+  );
+  // 当前路径可能在扫描根之下更深
+  if (curPath !== scanRoot && curPath.startsWith(scanRoot === '/' ? '/' : scanRoot + '/')) {
+    const rel = curPath.slice(scanRoot === '/' ? 1 : scanRoot.length + 1);
+    rel.split('/').filter(Boolean).forEach((s, i, arr) => {
+      segs.push([scanRoot === '/' ? '' : scanRoot + '/' + arr.slice(0, i + 1).join('/'), s]);
+    });
+  }
+  segs.forEach(([p, label], i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep'; sep.textContent = '/';
+      c.appendChild(sep);
+    }
+    const a = document.createElement('span');
+    a.className = 'crumb' + (i === segs.length - 1 ? ' cur' : '');
+    a.textContent = label === '/' ? '/' : label;
+    const target = p === '/' ? '/' : p;
+    a.onclick = () => loadTree(target);
+    c.appendChild(a);
+  });
+  $('btn-up').style.display = curPath !== scanRoot ? '' : 'none';
+}
+$('btn-up').onclick = () => {
+  if (curPath === scanRoot) return;
+  const parent = curPath.slice(0, curPath.lastIndexOf('/')) || '/';
+  loadTree(parent === scanRoot || parent.startsWith(scanRoot) ? parent : scanRoot);
+};
+
+async function startScan(root) {
+  root = (root || '/').trim() || '/';
+  scanning = true;
+  spaceLoaded = false;
+  $('btn-scan').disabled = true;
+  $('btn-scan').innerHTML = '<span class="spin"></span> 扫描中';
+  $('progress-box').classList.add('on');
+  $('p-done').style.display = 'none';
+  $('p-stats').style.display = '';
+  try { await jpost('api/scan?root=' + encodeURIComponent(root)); } catch (e) {}
+  startPoll(root);
+}
+
+function startPoll(root) {
+  scanRoot = root;
+  curPath = root;
+  $('scan-root').value = root;
+  renderCrumbs();
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    let p;
+    try { p = await jget('api/progress'); } catch (e) { return; }
+    $('p-files').textContent = fmtInt(p.files);
+    $('p-dirs').textContent = fmtInt(p.dirs);
+    $('p-bytes').textContent = fmtSize(p.bytes);
+    $('p-elapsed').textContent = fmtSec(p.elapsed_ms);
+    if (!p.scanning) {
+      clearInterval(pollTimer); pollTimer = null;
+      scanning = false;
+      $('btn-scan').disabled = false;
+      $('btn-scan').textContent = '开始扫描';
+      $('p-stats').style.display = 'none';
+      const done = $('p-done');
+      done.style.display = '';
+      done.innerHTML = `扫描完成：<b>${fmtInt(p.files)}</b> 文件 / <b>${fmtInt(p.dirs)}</b> 目录 / <b>${fmtSize(p.bytes)}</b>，耗时 ${fmtSec(p.elapsed_ms)}`
+        + (p.aborted ? ' <span class="warn-chip">已达条目上限，部分目录未深入</span>' : '');
+      loadTree(scanRoot);
+      loadBig();
+    }
+  }, 500);
+}
+
+async function loadTree(path) {
+  const tb = $('space-body');
+  tb.innerHTML = '<tr><td colspan="6"><div class="empty"><span class="spin"></span> 加载目录…</div></td></tr>';
+  let d;
+  try {
+    d = await jget('api/tree?path=' + encodeURIComponent(path || '/'));
+  } catch (e) {
+    tb.innerHTML = '<tr><td colspan="6"><div class="empty">加载失败：' + esc(e.message) + '</div></td></tr>';
+    return;
+  }
+  if (d.error) {
+    // 缓存失效（如主进程空闲重启）→ 自动重新扫描当前根
+    if (d.error.indexOf('尚未扫描') >= 0 || d.error.indexOf('范围') >= 0) {
+      startScan(path || '/');
+    } else {
+      tb.innerHTML = '<tr><td colspan="6"><div class="empty"><span class="big-ico">🧭</span>' + esc(d.error) + '</div></td></tr>';
+    }
+    return;
+  }
+  curPath = d.path;
+  scanRoot = d.root;
+  $('scan-root').value = scanRoot;
+  renderCrumbs();
+  spaceLoaded = true;
+
+  const kids = d.children || [];
+  const total = d.total || 0;
+  tb.innerHTML = '';
+  if (!kids.length) {
+    tb.innerHTML = '<tr><td colspan="6"><div class="empty">目录为空或不可读</div></td></tr>';
+  }
+  kids.slice(0, 200).forEach(c => {
+    const rel = total > 0 ? (c.size / total * 100) : 0;
+    const tr = document.createElement('tr');
+    if (c.is_dir) tr.className = 'rowlink';
+    tr.innerHTML = `
+      <td><div class="cell-name">
+        <span>${c.is_dir ? '📁' : fileIcon(c.name)}</span>
+        <span class="nm" title="${esc(c.path)}">${esc(c.name)}</span>
+      </div></td>
+      <td><div class="bar-cell">
+        <div class="bar-track"><i style="width:${Math.min(100, rel).toFixed(1)}%"></i></div>
+        <span class="bar-pct">${rel < 0.1 && rel > 0 ? '<0.1' : rel.toFixed(1)}%</span>
+      </div></td>
+      <td class="num">${fmtSize(c.size)}</td>
+      <td class="num">${c.is_dir ? fmtInt(c.files) : '—'}</td>
+      <td class="num">${c.is_dir ? fmtInt(c.dirs) : '—'}</td>
+      <td>${c.is_dir ? '<span class="arrow">›</span>' : ''}</td>`;
+    if (c.is_dir) tr.onclick = () => loadTree(c.path);
+    tb.appendChild(tr);
+  });
+  $('space-summary').innerHTML =
+    `<span>当前目录 <b>${esc(d.path)}</b></span>
+     <span>共 <b>${fmtInt(kids.length)}</b> 项（展示前 200）</span>
+     <span>合计 <b>${fmtSize(d.total)}</b></span>
+     <span><b>${fmtInt(d.files)}</b> 文件 / <b>${fmtInt(d.dirs)}</b> 目录</span>`;
+}
+
+function fileIcon(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (['zip','tar','gz','bz2','xz','zst','7z','rar'].includes(ext)) return '🗜️';
+  if (['log','txt','md','conf','yaml','yml','json','ini','toml'].includes(ext)) return '📄';
+  if (['png','jpg','jpeg','gif','webp','svg','ico'].includes(ext)) return '🖼️';
+  if (['mp4','mkv','avi','mov','webm','mp3','flac','wav'].includes(ext)) return '🎬';
+  if (['sh','py','js','ts','go','c','cpp','rs','php','html','css'].includes(ext)) return '📜';
+  if (['sql','db','sqlite'].includes(ext)) return '🗄️';
+  return '📄';
+}
+
+async function ensureTree() {
+  let p;
+  try { p = await jget('api/progress'); } catch (e) { return; }
+  if (p.scanning) {
+    // 已在扫描：接管进度显示
+    scanRoot = p.root; curPath = p.root;
+    $('scan-root').value = p.root;
+    $('btn-scan').disabled = true;
+    $('btn-scan').innerHTML = '<span class="spin"></span> 扫描中';
+    $('progress-box').classList.add('on');
+    $('p-done').style.display = 'none';
+    $('p-stats').style.display = '';
+    startPoll(p.root);
+  } else if (!p.done) {
+    startScan('/');
+  } else {
+    loadTree(p.root);
+  }
+}
+
+$('btn-scan').onclick = () => startScan($('scan-root').value);
+document.querySelectorAll('.quick-tag').forEach(t => {
+  t.onclick = () => { $('scan-root').value = t.dataset.root; startScan(t.dataset.root); };
+});
+
+/* ========== 大文件 ========== */
+async function loadBig() {
+  const root = ($('big-root').value || '/').trim() || '/';
+  $('big-root').value = root;
+  const tb = $('big-body');
+  tb.innerHTML = '<tr><td colspan="4"><div class="empty"><span class="spin"></span> 加载中…</div></td></tr>';
+  let d;
+  try { d = await jget('api/bigfiles?root=' + encodeURIComponent(root) + '&n=20'); }
+  catch (e) { tb.innerHTML = '<tr><td colspan="4"><div class="empty">加载失败</div></td></tr>'; return; }
+  const files = d.files || [];
+  if (!files.length) {
+    tb.innerHTML = '<tr><td colspan="4"><div class="empty"><span class="big-ico">🗂️</span>'
+      + ((d.progress && d.progress.done) ? '该目录下未找到大文件' : '请先在「空间分析」中完成一次扫描') + '</div></td></tr>';
+    return;
+  }
+  const max = files[0].size || 1;
+  tb.innerHTML = '';
+  files.forEach((f, i) => {
+    const rel = f.size / max * 100;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${i + 1}</td>
+      <td><div class="cell-name">
+        <span class="ft-ico">${fileIcon(f.name)}</span>
+        <span class="nm mono" title="${esc(f.path)}">${esc(f.path)}</span>
+      </div></td>
+      <td><div class="bar-cell">
+        <div class="bar-track"><i style="width:${rel.toFixed(1)}%;background:linear-gradient(90deg,var(--warn),var(--danger))"></i></div>
+        <span class="bar-pct">${rel.toFixed(0)}%</span>
+      </div></td>
+      <td class="num" style="font-weight:600">${fmtSize(f.size)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+$('big-run').onclick = loadBig;
+
+/* ========== 访问统计 ========== */
+async function loadLogEnv() {
+  try {
+    const env = await jget('api/logenv');
+    const input = $('log-path');
+    const tags = $('log-tags');
+    tags.innerHTML = '';
+    const logs = env.logs || [];
+    if (!logs.length) {
+      input.placeholder = '未探测到访问日志，请手动填写路径';
+      tags.style.display = 'none';
+      return;
+    }
+    input.placeholder = '访问日志路径（自动探测）';
+    if (!input.value) input.value = env.default || logs[0];
+    if (logs.length > 1) {
+      tags.style.display = 'flex';
+      logs.slice(0, 6).forEach(l => {
+        const s = document.createElement('span');
+        s.className = 'quick-tag';
+        s.textContent = l.replace(/^\/(var\/log|data\/panel\/logs)\//, '');
+        s.title = l;
+        s.onclick = () => { input.value = l; runAccess(); };
+        tags.appendChild(s);
+      });
+    }
+  } catch (e) { /* ignore */ }
+}
+async function runAccess() {
+  const body = $('access-body');
+  const log = $('log-path').value.trim();
+  const filter = $('log-filter').value.trim();
+  if (!log) { body.innerHTML = '<div class="empty">请填写日志路径</div>'; return; }
+  body.innerHTML = '<div class="empty"><span class="spin"></span> 统计中…</div>';
+  let res;
+  try {
+    res = await jget('api/access?log=' + encodeURIComponent(log) + '&n=20' + (filter ? '&filter=' + encodeURIComponent(filter) : ''));
+  } catch (e) { body.innerHTML = '<div class="empty">统计失败：' + esc(e.message) + '</div>'; return; }
+  if (res.error) { body.innerHTML = '<div class="empty">' + esc(res.error) + '</div>'; return; }
+  const paths = res.paths || [];
+  if (!paths.length) { body.innerHTML = '<div class="empty">无匹配记录</div>'; return; }
+  const max = paths[0].count || 1;
+  body.innerHTML = '';
+  paths.forEach(p => {
+    const pct = p.count / max * 100;
+    const row = document.createElement('div');
+    row.className = 'acc-row';
+    row.innerHTML = `
+      <div class="acc-path" title="${esc(p.path)}">${esc(p.path)}</div>
+      <div class="acc-track"><i style="width:${Math.max(2, pct).toFixed(1)}%"></i></div>
+      <div class="acc-count">${fmtInt(p.count)} 次</div>`;
+    body.appendChild(row);
+  });
+}
+$('access-run').onclick = runAccess;
+
+/* ========== 启动 ========== */
+loadDisks();
+loadLogEnv();
+ensureTree(); // 自动开始首次扫描（有实时进度反馈）
+</script>
+</body>
+</html>

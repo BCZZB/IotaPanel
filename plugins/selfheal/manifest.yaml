@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# 自愈守护插件 —— 攻击熔断 + 自动拉起 + WAF 内存自愈
+name: selfheal
+title: 自愈守护
+version: 1.0.0
+author: BCZZB
+description: 攻击熔断与自动拉起：被攻击速度/攻击量达到阈值时自动关闭内网穿透与网站，过指定秒数自动恢复；WAF 内存超阈且无攻击时自动重启 WAF。内置设置页可调阈值与开关。纯 Go 零依赖，常驻约 5MB。
+language: go
+command: bin/selfheal
+bind: 127.0.0.1
+keepalive: true
+menus:
+  - title: 自愈守护
+    icon: 🛡️
+    path: /
+    section: system

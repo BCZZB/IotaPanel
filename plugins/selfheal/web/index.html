@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自愈守护</title>
+<style>
+:root{
+  --bg:#f4f6f9; --card:#fff; --line:#e3e8ef; --txt:#1f2430; --sub:#6b7280;
+  --pri:#3b7cff; --pri2:#2563eb; --ok:#16a34a; --warn:#ea580c; --err:#dc2626;
+  --chip:#eef2ff; --grad:linear-gradient(135deg,#3b7cff,#7c3aed);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt);padding:20px}
+.wrap{max-width:860px;margin:0 auto}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.logo{width:42px;height:42px;border-radius:12px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;box-shadow:0 6px 16px rgba(59,124,255,.3)}
+.head h1{font-size:22px;font-weight:700}
+.head .tag{background:var(--chip);color:var(--pri2);font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 2px 6px rgba(20,30,60,.04)}
+.card h2{font-size:15px;font-weight:700;margin-bottom:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #f0f2f6}
+.row:last-child{border-bottom:none}
+.row .lab{flex:1}
+.row .lab b{font-size:14px}
+.row .lab span{display:block;font-size:12px;color:var(--sub);margin-top:2px}
+.sw{width:44px;height:24px;border-radius:20px;background:#d1d5db;position:relative;cursor:pointer;transition:.18s;flex:none}
+.sw.on{background:var(--ok)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw.on::after{left:22px}
+.num{display:flex;align-items:center;gap:8px}
+.num input{width:100px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;text-align:right}
+.num .u{font-size:12px;color:var(--sub)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:6px}
+.kpi{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:20px;color:var(--txt)}
+.kpi span{font-size:11px;color:var(--sub)}
+.badge{display:inline-block;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600}
+.badge.ok{background:#ecfdf5;color:var(--ok)}
+.badge.warn{background:#fff7ed;color:var(--warn)}
+.badge.err{background:#fef2f2;color:var(--err)}
+.badge.run{background:#eff6ff;color:var(--pri2)}
+.btnrow{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+.btn{border:none;border-radius:10px;padding:12px 26px;font-size:15px;font-weight:600;cursor:pointer;transition:.15s}
+.btn.primary{background:var(--grad);color:#fff;box-shadow:0 6px 14px rgba(59,124,255,.3)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.ghost{background:#fff;color:var(--sub);border:1px solid var(--line)}
+.msg{font-size:13px;margin-top:12px}
+.msg.ok{color:var(--ok)}
+.msg.err{color:var(--err)}
+textarea.targets{width:100%;min-height:56px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+.muted{color:var(--sub);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="logo">🛡️</div>
+    <h1>自愈守护</h1>
+    <span class="tag">攻击熔断 · 自动拉起 · WAF 内存自愈</span>
+  </div>
+
+  <!-- 状态 -->
+  <div class="card">
+    <h2>实时状态</h2>
+    <div class="grid" id="statusGrid">
+      <div class="kpi"><b id="kB_state">巡检中</b><span>守护开关</span></div>
+      <div class="kpi"><b id="kB_attack">-</b><span>当前是否被攻击</span></div>
+      <div class="kpi"><b id="kB_qps">0</b><span>WAF QPS(攻击速度)</span></div>
+      <div class="kpi"><b id="kB_total">0</b><span>WAF 累计请求量</span></div>
+      <div class="kpi"><b id="kB_blocked">0</b><span>WAF 拦截数</span></div>
+      <div class="kpi"><b id="kB_mode">probe</b><span>WAF 防护态</span></div>
+      <div class="kpi"><b id="kB_mem">0 MB</b><span>WAF 内存</span></div>
+      <div class="kpi"><b id="kB_down">未熔断</b><span>熔断状态</span></div>
+    </div>
+    <div class="muted" id="extraLine" style="margin-top:10px"></div>
+  </div>
+
+  <!-- 攻击判定 -->
+  <div class="card">
+    <h2>攻击判定</h2>
+    <div class="row">
+      <div class="lab"><b>QPS 阈值</b><span>WAF 请求速率达到此值视为被攻击(攻击速度)</span></div>
+      <div class="num"><input type="number" id="attack_qps" min="1"><span class="u">req/s</span></div>
+    </div>
+    <div class="row">
+      <div class="lab"><b>拦截量阈值</b><span>每分钟新增拦截数达到此值视为被攻击(攻击量)</span></div>
+      <div class="num"><input type="number" id="attack_per_minute" min="1"><span class="u">次/分</span></div>
+    </div>
+    <div class="row">
+      <div class="lab"><b>防护态视为攻击</b><span>WAF 处于 guard/block 防护模式时直接判定被攻击</span></div>
+      <div class="sw" id="attack_on_guard" onclick="tog('attack_on_guard')"></div>
+    </div>
+    <div class="row">
+      <div class="lab"><b>持续确认时长</b><span>连续被攻击这么多秒才触发熔断, 避免误伤</span></div>
+      <div class="num"><input type="number" id="sustain_secs" min="3"><span class="u">秒</span></div>
+    </div>
+  </div>
+
+  <!-- 熔断 -->
+  <div class="card">
+    <h2>攻击熔断</h2>
+    <div class="row">
+      <div class="lab"><b>启用熔断</b><span>被攻击达阈值时关闭内网穿透与网站</span></div>
+      <div class="sw" id="circuit_break_on" onclick="tog('circuit_break_on')"></div>
+    </div>
+    <div class="row" style="align-items:flex-start">
+      <div class="lab"><b>熔断目标插件</b><span>逗号分隔, 默认关闭内网穿透和网站</span></div>
+      <textarea class="targets" id="target_plugins"></textarea>
+    </div>
+    <div class="row">
+      <div class="lab"><b>熔断关闭时长</b><span>关闭持续这么多秒后自动拉起, 0=不拉起</span></div>
+      <div class="num"><input type="number" id="down_secs" min="0"><span class="u">秒</span></div>
+    </div>
+  </div>
+
+  <!-- WAF 自愈 -->
+  <div class="card">
+    <h2>WAF 内存自愈</h2>
+    <div class="row">
+      <div class="lab"><b>启用内存自愈</b><span>WAF 内存超阈且未被攻击时自动重启 WAF</span></div>
+      <div class="sw" id="mem_restart_on" onclick="tog('mem_restart_on')"></div>
+    </div>
+    <div class="row">
+      <div class="lab"><b>内存阈值</b><span>WAF 常驻内存超过此值(且无攻击)自动重启</span></div>
+      <div class="num"><input type="number" id="max_rss_mb" step="0.5" min="1"><span class="u">MB</span></div>
+    </div>
+  </div>
+
+  <!-- 接入 -->
+  <div class="card">
+    <h2>面板接入</h2>
+    <div class="row">
+      <div class="lab"><b>WAF 管理接口</b><span>读取攻击统计的来源</span></div>
+      <div class="num"><input type="text" id="waf_api_base" style="width:220px;text-align:left"></div>
+    </div>
+    <div class="row">
+      <div class="lab"><b>面板地址</b><span>用于控制开启/关闭插件的 API</span></div>
+      <div class="num"><input type="text" id="panel_base" style="width:220px;text-align:left"></div>
+    </div>
+    <div class="row">
+      <div class="lab"><b>面板账号 / 密码</b><span>熔断与重启需调用面板 API</span></div>
+      <div class="num">
+        <input type="text" id="auth_user" style="width:110px;text-align:left">
+        <input type="password" id="auth_pass" style="width:110px;text-align:left">
+      </div>
+    </div>
+  </div>
+
+  <div class="btnrow">
+    <button class="btn primary" onclick="save()">保存设置</button>
+    <button class="btn ghost" onclick="manual()">手动巡检一次</button>
+  </div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+var __base = location.pathname + (location.pathname.endsWith('/') ? '' : '/');
+async function j(path, opts){
+  const r = await fetch(__base + path.replace(/^\//,''), opts);
+  const d = await r.json();
+  if(!d.ok) throw new Error(d.error || '请求失败');
+  return d.data;
+}
+function el(id){ return document.getElementById(id); }
+function tog(id){
+  el(id).classList.toggle('on');
+}
+function setSw(id, on){ el(id).classList.toggle('on', !!on); }
+
+async function load(){
+  try{
+    const [st, cfg] = await Promise.all([j('api/status'), j('api/config')]);
+    render(st, cfg);
+  }catch(e){ el('msg').className='msg err'; el('msg').textContent='加载失败: '+e.message; }
+}
+function render(st, cfg){
+  setSw('attack_on_guard', cfg.attack_on_guard);
+  setSw('circuit_break_on', cfg.circuit_break_on);
+  setSw('mem_restart_on', cfg.mem_restart_on);
+  el('attack_qps').value = cfg.attack_qps;
+  el('attack_per_minute').value = cfg.attack_per_minute;
+  el('sustain_secs').value = cfg.sustain_secs;
+  el('target_plugins').value = (cfg.target_plugins||[]).join(', ');
+  el('down_secs').value = cfg.down_secs;
+  el('max_rss_mb').value = cfg.max_rss_mb;
+  el('waf_api_base').value = cfg.waf_api_base;
+  el('panel_base').value = cfg.panel_base;
+  el('auth_user').value = cfg.auth_user;
+  el('auth_pass').value = cfg.auth_pass || '';
+
+  el('kB_state').textContent = cfg.enabled ? '已开启' : '已关闭';
+  el('kB_state').style.color = cfg.enabled ? 'var(--ok)' : 'var(--err)';
+  el('kB_attack').textContent = st.attack_now ? '是 ⚠' : '否';
+  el('kB_attack').style.color = st.attack_now ? 'var(--warn)' : 'var(--ok)';
+  el('kB_qps').textContent = st.waf_qps;
+  el('kB_total').textContent = st.waf_total;
+  el('kB_blocked').textContent = st.waf_blocked;
+  el('kB_mode').textContent = st.waf_mode;
+  el('kB_mem').textContent = (st.waf_rss_mb||0).toFixed(1)+' MB';
+  el('kB_down').textContent = st.circuit_open ? '已熔断 🔥' : '正常';
+  el('kB_down').style.color = st.circuit_open ? 'var(--err)' : 'var(--ok)';
+  let extra = '上次巡检: ' + st.last_check;
+  if(st.circuit_open) extra += ' | 目标: '+st.circuit_target+' | 剩 '+st.down_left_secs+'s 拉起';
+  if(st.last_restart)  extra += ' | WAF 重启: '+st.last_restart;
+  if(st.last_break)    extra += ' | 熔断: '+st.last_break;
+  if(st.last_recover)  extra += ' | 恢复: '+st.last_recover;
+  if(st.last_error)    extra += ' <span style="color:var(--err)">| 错误: '+st.last_error+'</span>';
+  el('extraLine').innerHTML = extra;
+}
+async function save(){
+  const body = {
+    enabled: true,
+    attack_qps: +el('attack_qps').value||0,
+    attack_per_minute: +el('attack_per_minute').value||0,
+    attack_on_guard: el('attack_on_guard').classList.contains('on'),
+    sustain_secs: +el('sustain_secs').value||0,
+    circuit_break_on: el('circuit_break_on').classList.contains('on'),
+    target_plugins: (el('target_plugins').value||'').split(/[,，\s]+/).filter(Boolean),
+    down_secs: +el('down_secs').value||0,
+    mem_restart_on: el('mem_restart_on').classList.contains('on'),
+    max_rss_mb: +el('max_rss_mb').value||0,
+    waf_api_base: el('waf_api_base').value.trim(),
+    panel_base: el('panel_base').value.trim(),
+    auth_user: el('auth_user').value.trim(),
+    auth_pass: el('auth_pass').value
+  };
+  try{
+    await j('api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    el('msg').className='msg ok'; el('msg').textContent='设置已保存并生效';
+    load();
+  }catch(e){ el('msg').className='msg err'; el('msg').textContent='保存失败: '+e.message; }
+}
+async function manual(){
+  try{
+    await j('api/heal/run', { method:'POST' });
+    el('msg').className='msg ok'; el('msg').textContent='已触发巡检';
+    setTimeout(load, 1500);
+  }catch(e){ el('msg').className='msg err'; el('msg').textContent=e.message; }
+}
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

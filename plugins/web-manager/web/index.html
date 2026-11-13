@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>网站管理</title>
+<style>
+:root{
+  --bg:#f5f6f8;--card:#fff;--fg:#1f2329;--muted:#86909c;--line:#e5e6eb;
+  --pri:#165dff;--pri-h:#0e42d2;--ok:#00b42a;--warn:#ff7d00;--err:#f53f3f;
+  --radius:8px;--shadow:0 1px 4px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#17171a;--card:#232326;--fg:#e8e8e9;--muted:#8f9095;--line:#3a3a3f;
+        --pri:#3c7eff;--pri-h:#5c92ff;--shadow:0 1px 4px rgba(0,0,0,.3)}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.header h1{font-size:19px;margin:0;flex:1}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:20px;
+  padding:3px 12px;font-size:12.5px;color:var(--muted);box-shadow:var(--shadow)}
+.chip b{color:var(--fg);font-weight:600}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:1px}
+.dot.on{background:var(--ok)}.dot.off{background:var(--err)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:12.5px;background:transparent}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(22,93,255,.035)}
+.empty{padding:48px 0;text-align:center;color:var(--muted)}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg);
+  border-radius:6px;padding:5px 12px;font-size:13px;transition:.15s}
+button:hover{border-color:var(--pri);color:var(--pri)}
+button.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+button.pri:hover{background:var(--pri-h);color:#fff}
+button.danger:hover{border-color:var(--err);color:var(--err)}
+button.mini{padding:2px 9px;font-size:12.5px}
+.badge{display:inline-block;padding:1px 9px;border-radius:4px;font-size:12px;font-weight:500}
+.badge.run{color:var(--ok);background:rgba(0,180,42,.1)}
+.badge.stop{color:var(--err);background:rgba(245,63,63,.1)}
+.badge.ssl{color:var(--pri);background:rgba(22,93,255,.1)}
+.badge.dim{color:var(--muted);background:rgba(134,144,156,.12)}
+.domains-cell{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+/* 弹窗 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;
+  align-items:flex-start;justify-content:center;padding:5vh 16px;z-index:50}
+.mask.show{display:flex}
+.modal{background:var(--card);border-radius:10px;width:560px;max-width:100%;
+  max-height:88vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.22)}
+.modal header{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.modal header h3{margin:0;font-size:15.5px;flex:1}
+.modal .x{border:none;background:none;font-size:18px;color:var(--muted);padding:0 4px}
+.modal .body{padding:16px 18px}
+.modal footer{display:flex;justify-content:flex-end;gap:10px;padding:12px 18px;border-top:1px solid var(--line)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;margin-bottom:5px;color:var(--muted)}
+.field input[type=text],.field input[type=number],.field select,.field textarea{
+  width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;
+  background:transparent;color:var(--fg);font:inherit}
+.field textarea{min-height:74px;resize:vertical;font-family:ui-monospace,monospace;font-size:12.5px}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--pri)}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+.radio-row{display:flex;gap:18px;padding:6px 0}
+.radio-row label{display:flex;align-items:center;gap:6px;color:var(--fg);cursor:pointer;margin:0}
+.switch{position:relative;display:inline-block;width:36px;height:20px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch i{position:absolute;inset:0;background:var(--line);border-radius:20px;transition:.2s;cursor:pointer}
+.switch i:before{content:"";position:absolute;width:14px;height:14px;border-radius:50%;
+  left:3px;top:3px;background:#fff;transition:.2s}
+.switch input:checked+i{background:var(--pri)}
+.switch input:checked+i:before{transform:translateX(16px)}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:99;
+  padding:9px 20px;border-radius:8px;font-size:13.5px;color:#fff;display:none;box-shadow:var(--shadow)}
+.toast.ok{background:#00b42a}.toast.err{background:#f53f3f}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tabs button{border:none;background:none;border-radius:6px 6px 0 0;padding:7px 14px;color:var(--muted)}
+.tabs button.act{color:var(--pri);font-weight:600;box-shadow:inset 0 -2px var(--pri)}
+.dom-list{border:1px solid var(--line);border-radius:6px;max-height:180px;overflow:auto;margin-bottom:10px}
+.dom-item{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px}
+.dom-item:last-child{border-bottom:none}
+.warn-box{background:rgba(255,125,0,.08);border:1px solid rgba(255,125,0,.35);color:var(--warn);
+  border-radius:6px;padding:8px 12px;font-size:12.5px;margin-bottom:12px;display:none}
+.actions{display:flex;gap:6px}
+code{background:rgba(134,144,156,.14);padding:1px 6px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>🌐 网站管理</h1>
+    <button onclick="openPHP()">PHP 设置</button>
+    <button onclick="openMySQL()">数据库设置</button>
+    <button onclick="openPorts()">端口设置</button>
+    <button onclick="openACME()">SSL 证书</button>
+    <button class="pri" onclick="openCreate()">＋ 添加网站</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="tabs">
+    <button class="act" id="tabSites" onclick="switchMain('sites')">网站</button>
+    <button id="tabDBs" onclick="switchMain('dbs')">数据库</button>
+  </div>
+  <div class="card" id="secSites">
+    <table>
+      <thead><tr>
+        <th>网站名称</th><th>域名</th><th>状态</th><th>类型</th><th>SSL</th>
+        <th>请求</th><th>流量</th><th>创建时间</th><th>操作</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">
+      暂无网站，点击右上角「添加网站」创建第一个站点
+    </div>
+  </div>
+  <div class="card" id="secDBs" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)">
+      <span style="font-size:12.5px;color:var(--muted)" id="dbHint">数据库按需运行：连接到达才启动 mysqld，空闲自动停止，平时零内存占用</span>
+      <button class="pri mini" onclick="openCreateDB()">＋ 创建数据库</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>数据库名</th><th>账号</th><th>密码</th><th>大小</th><th>备注</th><th>创建时间</th><th>操作</th>
+      </tr></thead>
+      <tbody id="dbTbody"></tbody>
+    </table>
+    <div class="empty" id="dbEmpty" style="display:none">
+      暂无数据库；先在右上角「数据库设置」启用运行时，再创建第一个数据库
+    </div>
+  </div>
+</div>
+
+<!-- 添加网站 -->
+<div class="mask" id="mCreate">
+  <div class="modal">
+    <header><h3>添加网站</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div class="field"><label>网站名称</label>
+        <input type="text" id="cName" placeholder="我的博客（留空自动取域名）" maxlength="64">
+      </div>
+      <div class="field"><label>绑定域名（每行一个，支持 *.example.com 通配）</label>
+        <textarea id="cDomains" placeholder="www.example.com&#10;example.com"></textarea>
+      </div>
+      <div class="field"><label>网站类型</label>
+        <div class="radio-row">
+          <label><input type="radio" name="ctype" value="static" checked onchange="typeChanged()">静态站点</label>
+          <label><input type="radio" name="ctype" value="php" onchange="typeChanged()">PHP 网站</label>
+          <label><input type="radio" name="ctype" value="proxy" onchange="typeChanged()">反向代理</label>
+        </div>
+        <div class="hint" id="phpHint" style="display:none;color:var(--warn)">需先在「PHP 设置」中启用 PHP 运行时</div>
+      </div>
+      <div class="field" id="fRoot"><label>站点目录（留空使用默认沙箱目录）</label>
+        <input type="text" id="cRoot" placeholder="/www/wwwroot/mysite">
+        <div class="hint">默认目录：<code id="defRoot"></code>，创建后可随时修改</div>
+      </div>
+      <div class="field" id="fUp" style="display:none"><label>上游地址</label>
+        <input type="text" id="cUp" placeholder="http://127.0.0.1:3000">
+        <div class="hint">流量将被转发到该后端服务</div>
+      </div>
+    </div>
+    <footer><button onclick="closeAll()">取消</button><button class="pri" onclick="doCreate()">创建</button></footer>
+  </div>
+</div>
+
+<!-- 站点设置 -->
+<div class="mask" id="mSite">
+  <div class="modal">
+    <header><h3 id="sTitle">站点设置</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div class="tabs">
+        <button class="act" data-tab="domain" onclick="switchTab('domain')">域名</button>
+        <button data-tab="ssl" onclick="switchTab('ssl')">SSL 证书</button>
+        <button data-tab="adv" onclick="switchTab('adv')">高级</button>
+      </div>
+      <div class="warn-box" id="sWarn"></div>
+
+      <div id="tab-domain">
+        <div class="dom-list" id="domList"></div>
+        <div class="row-between">
+          <input type="text" id="newDomain" placeholder="新增域名，如 api.example.com" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--fg)">
+          <button onclick="addDomain()">添加域名</button>
+        </div>
+      </div>
+
+      <div id="tab-ssl" style="display:none">
+        <div style="border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <b>自动申请免费证书</b>
+            <button class="pri mini" id="btnIssue" onclick="issueCert()">一键申请 / 续期</button>
+          </div>
+          <div class="hint" id="acmeSiteHint">使用「SSL 证书」设置中选择的免费 CA（Let's Encrypt / ZeroSSL / Buypass…），
+            自动完成域名验证（HTTP-01）并签发证书，全程无需人工操作；签发后到期自动续期。<br>
+            前提：域名已解析到本服务器，且公网 80 端口可达（NAT 环境需在服务商处映射 80 → 本机 80）；
+            IP 直连证书为 Let's Encrypt shortlived（约 6 天有效期，自动续期无感覆盖）。</div>
+        </div>
+        <div id="sslNone">
+          <div class="hint" style="margin-bottom:10px">粘贴 PEM 格式的证书与私钥（支持 Let's Encrypt / 自签证书），保存后立即启用 HTTPS（SNI）。</div>
+          <div class="field"><label>证书（certificate PEM）</label>
+            <textarea id="sslCert" placeholder="-----BEGIN CERTIFICATE-----&#10;..."></textarea></div>
+          <div class="field"><label>私钥（private key PEM）</label>
+            <textarea id="sslKey" placeholder="-----BEGIN PRIVATE KEY-----&#10;..."></textarea></div>
+          <button class="pri" onclick="saveSSL()">保存并启用 HTTPS</button>
+        </div>
+        <div id="sslHas" style="display:none">
+          <div style="margin-bottom:12px" id="sslInfo"></div>
+          <div class="row-between" style="padding:8px 0">
+            <span>强制 HTTPS（HTTP 301 跳转）</span>
+            <label class="switch"><input type="checkbox" id="swRedirect" onchange="toggleRedirect(this.checked)"><i></i></label>
+          </div>
+          <button class="danger" onclick="removeSSL()">移除证书</button>
+        </div>
+      </div>
+
+      <div id="tab-adv" style="display:none">
+        <div class="field"><label>站点名称</label>
+          <input type="text" id="aName" maxlength="64"></div>
+        <div class="field"><label>默认文档（逗号分隔）</label>
+          <input type="text" id="aIndex" placeholder="index.html, index.htm"></div>
+        <div class="row-between" style="padding:8px 0;border-bottom:1px solid var(--line)">
+          <span>目录浏览（无默认文档时列出文件）</span>
+          <label class="switch"><input type="checkbox" id="swAutoIndex"><i></i></label>
+        </div>
+        <div class="field" style="margin-top:12px"><label>IP 黑名单（每行一个，支持 IP / CIDR）</label>
+          <textarea id="aBlocked" placeholder="1.2.3.4&#10;10.0.0.0/8"></textarea></div>
+        <div class="field" id="aRootField"><label>站点目录（静态站点）</label>
+          <input type="text" id="aRoot"></div>
+        <div class="field" id="aUpField" style="display:none"><label>上游地址（反向代理）</label>
+          <input type="text" id="aUp"></div>
+        <button class="pri" onclick="saveAdv()">保存设置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHP 设置 -->
+<div class="mask" id="mPHP">
+  <div class="modal" style="width:480px">
+    <header><h3>PHP 运行时</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div id="phpStatus" style="margin-bottom:14px"></div>
+      <div class="warn-box" id="phpWarn"></div>
+      <div class="row-between" style="padding:10px 0;border-bottom:1px solid var(--line)">
+        <span><b>启用 PHP 运行时</b>
+          <div class="hint">按需启动：首个 PHP 请求才拉起 php-fpm，空闲自动停止，不用时零内存占用</div>
+        </span>
+        <label class="switch"><input type="checkbox" id="phpEnabled" onchange="togglePHP(this.checked)"><i></i></label>
+      </div>
+      <div class="field" style="margin-top:14px"><label>每站点最大 worker（max_children）</label>
+        <input type="number" id="phpMax" min="1" max="50">
+        <div class="hint">低占用建议 1-4；ondemand 模式，空闲 worker 10 秒自动退出</div></div>
+      <div class="field"><label>空闲停止（秒）</label>
+        <input type="number" id="phpIdle" min="30" max="86400">
+        <div class="hint">无 PHP 请求超过该时长后，整个 php-fpm 自动停止</div></div>
+      <div class="row-between" style="margin-top:6px">
+        <button onclick="savePHPCfg()">保存参数</button>
+        <button class="danger" onclick="stopFPM()">立即停止 php-fpm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="mask" id="mDel">
+  <div class="modal" style="width:420px">
+    <header><h3>删除网站</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div id="delName" style="margin-bottom:12px"></div>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="delData"> 同时删除站点目录内文件
+      </label>
+      <div class="hint">仅默认沙箱目录可被删除；自定义目录与证书私钥会保留/清理规则见提示。</div>
+    </div>
+    <footer><button onclick="closeAll()">取消</button><button class="danger" style="border-color:var(--err);color:var(--err)" onclick="doDelete()">确认删除</button></footer>
+  </div>
+</div>
+
+<!-- 创建数据库 -->
+<div class="mask" id="mCreateDB">
+  <div class="modal" style="width:480px">
+    <header><h3>创建数据库</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div class="field"><label>数据库名</label>
+        <input type="text" id="dbName" placeholder="如 shop_blog" maxlength="64">
+        <div class="hint">字母开头，仅含字母 / 数字 / 下划线；utf8mb4 编码</div></div>
+      <div class="field"><label>账号（留空同库名）</label>
+        <input type="text" id="dbUser" placeholder="留空则与数据库名一致" maxlength="32"></div>
+      <div class="field"><label>密码</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="dbPwd" style="flex:1" maxlength="64">
+          <button onclick="genPwd()">随机</button>
+        </div>
+        <div class="hint">8-64 位，不含引号 / 反斜杠 / 空白；一库一账号，仅授权本库</div></div>
+      <div class="field"><label>备注（可选）</label>
+        <input type="text" id="dbRemark" maxlength="100" placeholder="如：市场站"></div>
+      <div class="hint" style="margin-top:4px">创建时若 mysqld 未运行会自动拉起（首次含初始化约需数十秒），完成后空闲自动回收</div>
+    </div>
+    <footer><button onclick="closeAll()">取消</button><button class="pri" onclick="doCreateDB()">创建</button></footer>
+  </div>
+</div>
+
+<!-- 数据库设置 -->
+<div class="mask" id="mMySQL">
+  <div class="modal" style="width:480px">
+    <header><h3>数据库运行时</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div id="myStatus" style="margin-bottom:14px"></div>
+      <div class="warn-box" id="myWarn"></div>
+      <div class="row-between" style="padding:10px 0;border-bottom:1px solid var(--line)">
+        <span><b>启用数据库</b>
+          <div class="hint">按需启动：连接到达才拉起 mysqld，空闲自动停止，不用时零内存占用</div>
+        </span>
+        <label class="switch"><input type="checkbox" id="myEnabled" onchange="toggleMySQL(this.checked)"><i></i></label>
+      </div>
+      <div class="field" style="margin-top:14px"><label>连接端口（PHP 应用连 127.0.0.1:端口）</label>
+        <input type="number" id="myPort" min="1" max="65535">
+        <div class="hint">默认 3306；插件内置唤醒代理，mysqld 本身不监听网络</div></div>
+      <div class="field"><label>空闲停止（秒）</label>
+        <input type="number" id="myIdle" min="30" max="86400">
+        <div class="hint">无活跃连接超过该时长后，mysqld 自动停止释放内存（数据保留在磁盘）</div></div>
+      <div class="row-between" style="margin-top:6px">
+        <button onclick="saveMySQLCfg()">保存参数</button>
+        <button class="danger" onclick="stopMySQL()">立即停止 mysqld</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 端口设置 -->
+<div class="mask" id="mPorts">
+  <div class="modal" style="width:420px">
+    <header><h3>端口设置</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div class="field"><label>HTTP 端口</label>
+        <input type="number" id="pHttp" min="1" max="65535">
+        <div class="hint">站点默认通过该端口提供 HTTP 访问</div></div>
+      <div class="field"><label>HTTPS 端口（0 为关闭）</label>
+        <input type="number" id="pHttps" min="0" max="65535"></div>
+      <div class="field"><label>监听地址</label>
+        <input type="text" id="pBind" placeholder="0.0.0.0">
+        <div class="hint">一般保持 0.0.0.0；若前面有 Nginx 等反代可改 127.0.0.1</div></div>
+      <div class="warn-box" id="pWarn"></div>
+    </div>
+    <footer><button onclick="closeAll()">取消</button><button class="pri" onclick="savePorts()">保存</button></footer>
+  </div>
+</div>
+
+<!-- SSL 证书自动申请 -->
+<div class="mask" id="mACME">
+  <div class="modal" style="width:560px">
+    <header><h3>SSL 证书自动申请</h3><button class="x" onclick="closeAll()">×</button></header>
+    <div class="body">
+      <div id="acmeStatus" style="margin-bottom:14px"></div>
+      <div class="warn-box" id="acmeWarn"></div>
+      <div class="field"><label>证书颁发机构（免费 CA）</label>
+        <select id="acmeProv" onchange="acmeProvChanged()"></select>
+        <div class="hint" id="acmeProvNote"></div></div>
+      <div class="field"><label>邮箱（CA 账号 + 到期提醒）</label>
+        <input type="text" id="acmeEmail" placeholder="admin@example.com" maxlength="254"></div>
+      <div class="field" id="fZeroSSL" style="display:none"><label>ZeroSSL API Key</label>
+        <input type="text" id="acmeZeroKey" placeholder="zerossl.com 控制台获取，填一次即可全自动" maxlength="128">
+        <div class="hint">登录 zerossl.com → Developer → 复制 API Key；插件会自动换取 EAB 凭据</div></div>
+      <div id="fEAB" style="display:none">
+        <div class="field"><label>EAB Key ID</label>
+          <input type="text" id="acmeEabKid" maxlength="256"></div>
+        <div class="field"><label>EAB HMAC Key</label>
+          <input type="text" id="acmeEabHmac" maxlength="512"></div>
+      </div>
+      <div class="field"><label>HTTP-01 验证端口</label>
+        <input type="number" id="acmeHttpPort" min="0" max="65535">
+        <div class="hint">默认 80：CA 会回源访问 http://域名/.well-known/acme-challenge/ 验证域名归属；
+          若公网 80 已转发到主监听端口可填 0</div></div>
+      <div class="row-between" style="padding:10px 0;border-bottom:1px solid var(--line)">
+        <span><b>到期自动续期</b>
+          <div class="hint">每 12 小时巡检，剩余天数不足时自动重新签发</div></span>
+        <label class="switch"><input type="checkbox" id="acmeAutoRenew" checked><i></i></label>
+      </div>
+      <div class="field" style="margin-top:14px"><label>续期提前天数</label>
+        <input type="number" id="acmeRenewDays" min="7" max="60"></div>
+      <div class="field" style="margin-top:14px"><label>公网 80 端口连通性检测（HTTP-01 验证前提）</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="acmeCheckHost" placeholder="留空=检测全部站点域名，或填指定域名/IP" style="flex:1" maxlength="253">
+          <button id="btnPortCheck" onclick="acmePortCheck()">检测端口</button>
+        </div>
+        <div class="hint" id="portCheckHint">从公网多节点探测 80 端口是否可达，提前发现 NAT 未映射/防火墙拦截问题</div></div>
+      <div class="row-between" style="margin-top:6px">
+        <button onclick="acmeRegister()" id="btnAcmeReg">注册并验证账号</button>
+        <button class="danger" onclick="acmeRenewNow()">立即巡检续期</button>
+      </div>
+      <div class="hint" style="margin-top:12px">使用条件：域名已解析到本服务器，且 80 端口可从公网访问
+        （NAT 环境请在服务商后台把公网 80 转发到本插件）。通配符证书需 DNS 验证，暂不支持自动申请。</div>
+    </div>
+    <footer><button onclick="closeAll()">取消</button><button class="pri" onclick="saveACME()">保存设置</button></footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* 工具 */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg,ok){const t=$('toast');t.textContent=msg;t.className='toast show '+(ok?'ok':'err');clearTimeout(t._h);t._h=setTimeout(()=>t.className='toast',2600)}
+function fmtBytes(n){if(n>=(1<<30))return(n/(1<<30)).toFixed(2)+' GB';if(n>=(1<<20))return(n/(1<<20)).toFixed(2)+' MB';if(n>=1024)return(n/1024).toFixed(1)+' KB';return n+' B'}
+function fmtNum(n){return n>=100000?(n/10000).toFixed(1)+'万':String(n)}
+async function api(method,path,body){
+  const opt={method,headers:{'Content-Type':'application/json'}};
+  if(body!==undefined)opt.body=JSON.stringify(body);
+  const r=await fetch(path,opt);
+  let j;try{j=await r.json()}catch(e){throw new Error('响应异常 '+r.status)}
+  if(!r.ok||j.ok===false)throw new Error(j.error||('请求失败 '+r.status));
+  return j;
+}
+function closeAll(){document.querySelectorAll('.mask').forEach(m=>m.classList.remove('show'))}
+document.querySelectorAll('.mask').forEach(m=>m.addEventListener('mousedown',e=>{if(e.target===m)closeAll()}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+
+/* 状态与列表 */
+let status={},sites=[];
+async function refresh(){
+  try{
+    const[s,st]=await Promise.all([api('GET','api/status'),api('GET','api/sites')]);
+    status=s;sites=st.sites||[];render();
+  }catch(e){toast(e.message)}
+}
+function render(){
+  const c=[];
+  c.push(`<span class="chip"><span class="dot ${status.httpUp?'on':'off'}"></span>HTTP :${esc(status.httpPort)} ${status.httpUp?'正常':esc(status.httpErr||'未启动')}</span>`);
+  c.push(`<span class="chip"><span class="dot ${status.httpsUp?'on':'off'}"></span>HTTPS :${esc(status.httpsPort)} ${status.httpsUp?'正常':esc(status.httpsErr||'未启动')}</span>`);
+  c.push(`<span class="chip">站点 <b>${status.siteCount||0}</b></span>`);
+  c.push(`<span class="chip">请求 <b>${fmtNum(status.totalRequests||0)}</b></span>`);
+  c.push(`<span class="chip">流量 <b>${fmtBytes(status.totalBytes||0)}</b></span>`);
+  c.push(`<span class="chip">运行 <b>${fmtDur(status.uptime||0)}</b></span>`);
+  $('chips').innerHTML=c.join('');
+  const tb=$('tbody');
+  if(!sites.length){$('empty').style.display='block';tb.innerHTML='';return}
+  $('empty').style.display='none';
+  tb.innerHTML=sites.map(s=>`
+    <tr>
+      <td><b>${esc(s.name)}</b><div style="font-size:11.5px;color:var(--muted)">${esc(s.id)}</div></td>
+      <td class="domains-cell" title="${esc((s.domains||[]).join('、'))}">${esc((s.domains||[]).join('、'))}</td>
+      <td>${s.enabled?'<span class="badge run">运行中</span>':'<span class="badge stop">已停止</span>'}</td>
+      <td>${s.type==='proxy'?'<span class="badge dim">反向代理</span>':s.type==='php'?'<span class="badge dim" style="color:#7c3aed;background:rgba(124,58,237,.1)">PHP</span>':'<span class="badge dim">静态</span>'}</td>
+      <td>${s.hasSsl?`<span class="badge ssl">已启用</span>${s.sslAuto?'<span class="badge dim" style="margin-left:4px">自动</span>':''}${s.sslDays>=0?`<div style="font-size:11.5px;color:var(--muted)">剩余 ${s.sslDays} 天</div>`:''}`:'<span style="color:var(--muted)">未配置</span>'}</td>
+      <td>${fmtNum(s.requests||0)}</td>
+      <td>${fmtBytes(s.bytesOut||0)}</td>
+      <td style="color:var(--muted);font-size:12.5px">${esc(s.createdAt)}</td>
+      <td><div class="actions">
+        <button class="mini" onclick="openSite('${esc(s.id)}')">设置</button>
+        <button class="mini" onclick="toggle('${esc(s.id)}',${s.enabled?'false':'true'})">${s.enabled?'停止':'启动'}</button>
+        <button class="mini danger" onclick="openDelete('${esc(s.id)}')">删除</button>
+      </div></td>
+    </tr>`).join('');
+}
+function fmtDur(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h>0?h+'时'+m+'分':m+'分'+(s%60)+'秒'}
+
+/* 创建 */
+function openCreate(){
+  $('cName').value='';$('cDomains').value='';$('cRoot').value='';$('cUp').value='';
+  document.querySelector('input[name=ctype][value=static]').checked=true;typeChanged();
+  $('mCreate').classList.add('show');
+}
+function typeChanged(){
+  const t=document.querySelector('input[name=ctype]:checked').value;
+  $('fRoot').style.display=t==='proxy'?'none':'';
+  $('fUp').style.display=t==='proxy'?'':'none';
+  $('phpHint').style.display=t==='php'?'':'none';
+}
+async function doCreate(){
+  const domains=$('cDomains').value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const type=document.querySelector('input[name=ctype]:checked').value;
+  try{
+    const r=await api('POST','api/sites',{
+      name:$('cName').value.trim(),domains,type,
+      root:$('cRoot').value.trim(),upstream:$('cUp').value.trim()
+    });
+    closeAll();toast('网站创建成功',true);refresh();
+  }catch(e){toast(e.message)}
+}
+
+/* 站点设置 */
+let cur=null;
+function findSite(id){return sites.find(s=>s.id===id)}
+async function openSite(id){
+  cur=findSite(id);if(!cur)return;
+  $('sTitle').textContent='站点设置 · '+cur.name;
+  $('sWarn').style.display='none';
+  $('newDomain').value='';
+  renderDomains();
+  // SSL
+  if(cur.hasSsl){
+    $('sslNone').style.display='none';$('sslHas').style.display='';
+    const prov={letsencrypt:"Let's Encrypt",'le-staging':"LE 测试",zerossl:'ZeroSSL',buypass:'Buypass','buypass-test':'Buypass 测试',google:'Google'}[cur.sslProvider]||cur.sslProvider||'';
+    $('sslInfo').innerHTML=`证书覆盖：<b>${esc((cur.sslDomains||[]).filter((v,i,a)=>a.indexOf(v)===i).join('、'))}</b><br>
+      <span style="color:var(--muted)">到期：${cur.sslDays>=0?'剩余 '+cur.sslDays+' 天':'<span style="color:var(--err)">已过期</span>'}</span>
+      ${cur.sslAuto?`<br><span class="badge ssl">自动签发</span> <span style="font-size:12px;color:var(--muted)">${esc(prov)} · 到期自动续期</span>`:''}`;
+    $('swRedirect').checked=!!cur.redirectHttps;
+    $('btnIssue').textContent=cur.sslAuto?'立即续期':'一键申请 / 续期';
+  }else{
+    $('sslNone').style.display='';$('sslHas').style.display='none';
+    $('sslCert').value='';$('sslKey').value='';
+    $('btnIssue').textContent='一键申请';
+  }
+  // 高级
+  $('aName').value=cur.name;
+  $('aIndex').value=(cur.index||[]).join(', ');
+  $('swAutoIndex').checked=!!cur.autoIndex;
+  $('aBlocked').value=(cur.blockedIps||[]).join('\n');
+  $('aRootField').style.display=cur.type==='proxy'?'none':'';
+  $('aUpField').style.display=cur.type==='proxy'?'':'none';
+  $('aRoot').value=cur.type==='proxy'?'':cur.root;
+  $('aUp').value=cur.type==='proxy'?cur.upstream:'';
+  switchTab('domain');
+  $('mSite').classList.add('show');
+}
+function switchTab(t){
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('act',b.dataset.tab===t));
+  $('tab-domain').style.display=t==='domain'?'':'none';
+  $('tab-ssl').style.display=t==='ssl'?'':'none';
+  $('tab-adv').style.display=t==='adv'?'':'none';
+}
+function renderDomains(){
+  $('domList').innerHTML=(cur.domains||[]).map(d=>`
+    <div class="dom-item"><span>${esc(d)}</span>
+    <button class="mini danger" onclick="delDomain('${esc(d)}')">删除</button></div>`).join('')
+    ||'<div class="dom-item" style="color:var(--muted)">（无域名）</div>';
+}
+async function addDomain(){
+  const d=$('newDomain').value.trim();if(!d)return toast('请输入域名');
+  try{const r=await api('POST',`api/sites/${cur.id}/domains`,{domains:[d]});
+    cur=r.site;refresh();renderDomains();$('newDomain').value='';toast('域名已添加',true);
+    if(r.warnings&&r.warnings.length)toast(r.warnings[0]);
+  }catch(e){toast(e.message)}
+}
+async function delDomain(d){
+  try{const r=await api('DELETE',`api/sites/${cur.id}/domains/${encodeURIComponent(d)}`);
+    cur=r.site;refresh();renderDomains();toast('域名已删除',true);
+  }catch(e){toast(e.message)}
+}
+async function saveSSL(){
+  try{const r=await api('PUT',`api/sites/${cur.id}/ssl`,{cert:$('sslCert').value,key:$('sslKey').value});
+    cur=r.site;refresh();
+    if(r.warnings&&r.warnings.length){$('sWarn').textContent=r.warnings.join('；');$('sWarn').style.display='block'}
+    toast('证书已启用',true);openSite(cur.id);
+  }catch(e){toast(e.message)}
+}
+async function removeSSL(){
+  if(!confirm('确认移除该站点的 SSL 证书？'))return;
+  try{await api('DELETE',`api/sites/${cur.id}/ssl`);refresh();toast('证书已移除',true);openSite(cur.id);
+  }catch(e){toast(e.message)}
+}
+
+/* SSL 自动申请（ACME） */
+let acmeData={providers:[],config:{},accounts:{},http01:{}};
+async function openACME(){
+  $('mACME').classList.add('show');
+  $('acmeWarn').style.display='none';
+  try{acmeData=await api('GET','api/acme/config');}catch(e){toast(e.message);return}
+  renderACME();
+}
+function renderACME(){
+  const cfg=acmeData.config||{};
+  $('acmeProv').innerHTML=(acmeData.providers||[]).map(p=>
+    `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  $('acmeProv').value=cfg.provider||'letsencrypt';
+  $('acmeEmail').value=cfg.email||'';
+  $('acmeZeroKey').value=cfg.zeroSslApiKey||'';
+  $('acmeEabKid').value=cfg.eabKid||'';
+  $('acmeEabHmac').value='';
+  $('acmeHttpPort').value=cfg.httpPort!=null?cfg.httpPort:80;
+  $('acmeAutoRenew').checked=cfg.autoRenew!==false;
+  $('acmeRenewDays').value=cfg.renewDays||30;
+  acmeProvChanged();
+  // 状态行：账号 + 监听
+  const accs=acmeData.accounts||{};
+  const accNames={letsencrypt:"Let's Encrypt",'le-staging':'LE 测试',zerossl:'ZeroSSL',buypass:'Buypass','buypass-test':'Buypass 测试',google:'Google'};
+  const accHtml=Object.keys(accs).length
+    ?Object.entries(accs).map(([id,a])=>`<span class="badge ssl">${esc(accNames[id]||id)}</span> <span style="font-size:12px;color:var(--muted)">已注册 ${esc(a.createdAt||'')}</span>`).join('<br>')
+    :'<span style="color:var(--muted);font-size:12.5px">尚未注册账号（保存设置后点「注册并验证账号」即可）</span>';
+  const h=acmeData.http01||{};
+  const port80=h.listening
+    ?`<span class="dot on"></span>HTTP-01 验证监听 :${esc(h.port)} 正常`
+    :`<span class="dot ${h.err?'off':'on'}"></span>${esc(h.err||('验证走主监听端口 :'+esc(h.port)))}`;
+  $('acmeStatus').innerHTML=`<div style="font-size:12.5px;line-height:2">${port80}<br>${accHtml}</div>`;
+  if(h.err){$('acmeWarn').textContent=h.err;$('acmeWarn').style.display='block'}
+}
+function acmeProvChanged(){
+  const p=(acmeData.providers||[]).find(x=>x.id===$('acmeProv').value)||{};
+  $('fZeroSSL').style.display=p.id==='zerossl'?'':'none';
+  $('fEAB').style.display=p.needEab&&p.id!=='zerossl'?'':'none';
+  const notes={
+    letsencrypt:'最主流的免费 CA：域名证书 90 天有效期，无需注册直接申请；IP 直连证书约 6 天有效期（自动续期覆盖），需公网 80 端口可达',
+    'le-staging':'测试环境：签发无限额但浏览器不信任，仅用于验证流程；IP 证书同样支持',
+    zerossl:'90 天有效期；填一次 API Key 即全自动（也可手动填 EAB）；仅支持域名，不支持 IP 证书',
+    buypass:'挪威免费 CA，180 天有效期，无需注册；仅支持域名',
+    'buypass-test':'Buypass 测试环境',
+    google:'90 天有效期；需在 Google Cloud 控制台生成 EAB 凭据后填入；仅支持域名'
+  };
+  $('acmeProvNote').textContent=notes[p.id]||p.note||'';
+}
+async function saveACME(){
+  const body={
+    provider:$('acmeProv').value,
+    email:$('acmeEmail').value.trim(),
+    zeroSslApiKey:$('acmeZeroKey').value.trim(),
+    eabKid:$('acmeEabKid').value.trim(),
+    eabHmacKey:$('acmeEabHmac').value.trim(),
+    httpPort:parseInt($('acmeHttpPort').value||'80',10),
+    autoRenew:$('acmeAutoRenew').checked,
+    renewDays:parseInt($('acmeRenewDays').value||'30',10)
+  };
+  try{acmeData=await api('PUT','api/acme/config',body);renderACME();toast('SSL 设置已保存',true);}
+  catch(e){toast(e.message)}
+}
+async function acmeRegister(){
+  const b=$('btnAcmeReg');b.disabled=true;b.textContent='验证中…';
+  try{
+    await saveACMEQuiet();
+    const r=await api('POST','api/acme/register');
+    toast('账号验证成功（'+(r.ca||'')+'）',true);
+    acmeData=await api('GET','api/acme/config');renderACME();
+  }catch(e){toast(e.message)}
+  b.disabled=false;b.textContent='注册并验证账号';
+}
+async function saveACMEQuiet(){
+  const body={
+    provider:$('acmeProv').value,
+    email:$('acmeEmail').value.trim(),
+    zeroSslApiKey:$('acmeZeroKey').value.trim(),
+    eabKid:$('acmeEabKid').value.trim(),
+    eabHmacKey:$('acmeEabHmac').value.trim(),
+    httpPort:parseInt($('acmeHttpPort').value||'80',10),
+    autoRenew:$('acmeAutoRenew').checked,
+    renewDays:parseInt($('acmeRenewDays').value||'30',10)
+  };
+  const r=await api('PUT','api/acme/config',body);acmeData=r;
+}
+async function acmeRenewNow(){
+  try{const r=await api('POST','api/acme/renew');
+    const res=r.results||{};const keys=Object.keys(res);
+    toast(keys.length?('续期结果：'+keys.map(k=>k+' '+res[k]).join('；')):'当前没有需要续期的证书',true);
+  }catch(e){toast(e.message)}
+}
+async function acmePortCheck(){
+  const b=$('btnPortCheck');b.disabled=true;b.textContent='探测中…';
+  const hint=$('portCheckHint');
+  hint.textContent='正在从公网多节点探测（约 5-8 秒）…';
+  try{
+    const host=$('acmeCheckHost').value.trim();
+    // 留空=逐站点检测全部域名；填了 host 直接单测
+    let results=[];
+    if(host){
+      const r=await api('POST','api/acme/portcheck',{host});
+      results=r.results||[];
+    }else{
+      for(const s of sites){
+        const r=await api('POST','api/acme/portcheck',{siteId:s.id});
+        results=results.concat(r.results||[]);
+      }
+    }
+    if(!results.length){hint.textContent='没有可检测的域名（先创建站点并绑定域名）';return}
+    const bad=results.filter(x=>!x.reachable);
+    hint.innerHTML=results.map(x=>x.reachable
+      ?`<span class="dot on"></span>${esc(x.host)} 可达（${esc(x.detail)}）`
+      :`<span class="dot off"></span>${esc(x.host)} 不可达（${esc(x.detail)}）`).join('<br>')
+      +(bad.length?`<br><b style="color:var(--err)">不可达的域名无法通过 HTTP-01 验证：请在云服务商/防火墙放行公网 80 端口并转发到本服务器（NAT 需映射外部 80 → 本机 80）</b>`:'');
+  }catch(e){hint.textContent='检测失败：'+e.message}
+  b.disabled=false;b.textContent='检测端口';
+}
+async function issueCert(){
+  if(!confirm('确认为站点「'+cur.name+'」申请/续期证书？\n需保证域名已解析到本服务器且 80 端口可从公网访问。'))return;
+  const b=$('btnIssue');b.disabled=true;b.textContent='申请中（约 10-60 秒）…';
+  try{
+    const r=await api('POST',`api/sites/${cur.id}/ssl/acme`);
+    cur=r.site;refresh();
+    toast('证书签发成功，HTTPS 已启用',true);openSite(cur.id);
+  }catch(e){toast('签发失败：'+e.message)}
+  b.disabled=false;b.textContent=cur&&cur.sslAuto?'立即续期':'一键申请';
+}
+async function toggleRedirect(on){
+  try{const r=await api('PUT',`api/sites/${cur.id}`,{redirectHttps:on});
+    cur=r.site;refresh();toast(on?'已开启强制 HTTPS':'已关闭强制 HTTPS',true);
+  }catch(e){toast(e.message);$('swRedirect').checked=!on}
+}
+async function saveAdv(){
+  const body={
+    name:$('aName').value.trim(),
+    index:$('aIndex').value.split(',').map(s=>s.trim()).filter(Boolean),
+    autoIndex:$('swAutoIndex').checked,
+    blockedIps:$('aBlocked').value.split(/\n+/).map(s=>s.trim()).filter(Boolean)
+  };
+  if(cur.type!=='proxy'&&$('aRoot').value.trim())body.root=$('aRoot').value.trim();
+  if(cur.type==='proxy'&&$('aUp').value.trim())body.upstream=$('aUp').value.trim();
+  try{const r=await api('PUT',`api/sites/${cur.id}`,body);
+    cur=r.site;refresh();toast('设置已保存',true);
+  }catch(e){toast(e.message)}
+}
+
+/* 启停 / 删除 */
+async function toggle(id,on){
+  try{await api('POST',`api/sites/${id}/${on?'enable':'disable'}`);refresh();
+    toast(on?'站点已启动':'站点已停止',true);
+  }catch(e){toast(e.message)}
+}
+let delId='';
+function openDelete(id){
+  const s=findSite(id);if(!s)return;delId=id;
+  $('delName').innerHTML=`确认删除网站 <b>${esc(s.name)}</b>（${esc((s.domains||[]).join('、'))}）？`;
+  $('delData').checked=false;$('mDel').classList.add('show');
+}
+async function doDelete(){
+  try{await api('DELETE',`api/sites/${delId}?deleteData=${$('delData').checked?1:0}`);
+    closeAll();toast('网站已删除',true);refresh();
+  }catch(e){toast(e.message)}
+}
+
+/* PHP 运行时 */
+let phpSt={};
+async function openPHP(){
+  await loadPHP();$('mPHP').classList.add('show');
+}
+async function loadPHP(){
+  try{
+    phpSt=await api('GET','api/php/status');
+    const s=phpSt;
+    $('phpEnabled').checked=!!s.enabled;
+    $('phpMax').value=s.maxChildren||2;
+    $('phpIdle').value=s.idleStopSecs||300;
+    $('phpWarn').style.display='none';
+    let st='<span class="dot '+(s.running?'on':'off')+'"></span>'+(s.running?'php-fpm 运行中':'php-fpm 未运行');
+    if(!s.available){
+      st='<span class="dot off"></span>未检测到 php-fpm';
+      $('phpWarn').textContent='服务器未安装 php-fpm。Alpine: apk add php83 php83-fpm | Debian: apt install php-fpm，安装后重启本插件。';
+      $('phpWarn').style.display='block';
+    }else if(s.enabled&&!s.running){
+      st+='（按需待命，首个请求自动拉起）';
+    }
+    if(s.version)st+='<div class="hint">'+esc(s.version)+'</div>';
+    if(s.enabled&&s.available){
+      st+='<div class="hint">PHP 站点池: '+s.poolCount+' 个 · 不使用时零内存占用</div>';
+    }
+    $('phpStatus').innerHTML=st;
+  }catch(e){$('phpStatus').textContent=e.message}
+}
+async function togglePHP(on){
+  try{
+    await api('PUT','api/php/config',{enabled:on});
+    toast(on?'PHP 运行时已启用':'PHP 运行时已关闭',true);
+    loadPHP();
+  }catch(e){toast(e.message);$('phpEnabled').checked=!on;loadPHP()}
+}
+async function savePHPCfg(){
+  try{
+    await api('PUT','api/php/config',{
+      maxChildren:parseInt($('phpMax').value,10),
+      idleStopSecs:parseInt($('phpIdle').value,10)
+    });
+    toast('PHP 参数已保存',true);loadPHP();
+  }catch(e){toast(e.message)}
+}
+async function stopFPM(){
+  try{await api('POST','api/php/stop');toast('php-fpm 已停止',true);loadPHP();
+  }catch(e){toast(e.message)}
+}
+
+/* 端口 */
+function openPorts(){
+  $('pHttp').value=status.httpPort||80;$('pHttps').value=status.httpsPort==null?443:status.httpsPort;
+  $('pBind').value='0.0.0.0';$('pWarn').style.display='none';
+  $('mPorts').classList.add('show');
+}
+async function savePorts(){
+  try{
+    const r=await api('PUT','api/config',{
+      httpPort:parseInt($('pHttp').value,10),
+      httpsPort:parseInt($('pHttps').value,10),
+      bindHttp:$('pBind').value.trim()
+    });
+    if((!r.httpUp&&r.httpErr)||(!r.httpsUp&&r.httpsErr)){
+      $('pWarn').textContent='监听异常：'+(r.httpErr||r.httpsErr);$('pWarn').style.display='block';
+    }else{closeAll();toast('端口设置已保存',true)}
+    refresh();
+  }catch(e){toast(e.message)}
+}
+
+/* ---------- 数据库 ---------- */
+let mainTab='sites',mysqlSt={},dbs=[];
+function switchMain(t){
+  mainTab=t;
+  $('tabSites').classList.toggle('act',t==='sites');
+  $('tabDBs').classList.toggle('act',t==='dbs');
+  $('secSites').style.display=t==='sites'?'':'none';
+  $('secDBs').style.display=t==='dbs'?'':'none';
+  if(t==='dbs')loadDBs();
+}
+async function loadDBs(){
+  try{
+    const r=await api('GET','api/dbs');
+    dbs=r.databases||[];mysqlSt=r.mysql||{};
+    renderDBs();
+  }catch(e){toast(e.message)}
+}
+function renderDBs(){
+  const tb=$('dbTbody');
+  if(!dbs.length){$('dbEmpty').style.display='block';tb.innerHTML='';return}
+  $('dbEmpty').style.display='none';
+  tb.innerHTML=dbs.map(d=>`
+    <tr>
+      <td><b>${esc(d.name)}</b></td>
+      <td>${esc(d.user)}</td>
+      <td><code class="dbpwd" data-p="${esc(d.id)}">••••••</code></td>
+      <td>${d.size!=null?fmtBytes(d.size):'<span style="color:var(--muted)">-</span>'}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${esc(d.remark||'')}">${esc(d.remark||'-')}</td>
+      <td style="color:var(--muted);font-size:12.5px">${esc(d.createdAt)}</td>
+      <td><div class="actions">
+        <button class="mini" onclick="showPwd('${esc(d.id)}')">密码</button>
+        <button class="mini" onclick="openPwdDB('${esc(d.id)}')">改密</button>
+        <button class="mini danger" onclick="delDB('${esc(d.id)}')">删除</button>
+      </div></td>
+    </tr>`).join('');
+}
+function showPwd(id){
+  const el=document.querySelector('.dbpwd[data-p="'+id+'"]');
+  const d=dbs.find(x=>x.id===id);
+  if(!el||!d)return;
+  el.textContent=el.textContent==='••••••'?d.password:'••••••';
+}
+function openCreateDB(){
+  if(!mysqlSt.available){
+    toast('服务器未检测到 mysqld，请先安装（Alpine: apk add mariadb mariadb-client）');return;
+  }
+  if(!mysqlSt.enabled){
+    toast('请先在「数据库设置」中启用数据库运行时');openMySQL();return;
+  }
+  $('dbName').value='';$('dbUser').value='';$('dbPwd').value='';$('dbRemark').value='';
+  $('mCreateDB').classList.add('show');
+}
+function genPwd(){
+  const cs='abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let p='';const rnd=crypto.getRandomValues(new Uint32Array(16));
+  for(let i=0;i<16;i++)p+=cs[rnd[i]%cs.length];
+  $('dbPwd').value=p;
+}
+async function doCreateDB(){
+  try{
+    await api('POST','api/dbs',{
+      name:$('dbName').value.trim(),
+      user:$('dbUser').value.trim(),
+      password:$('dbPwd').value,
+      remark:$('dbRemark').value.trim()
+    });
+    toast('数据库已创建（mysqld 空闲后自动回收）',true);closeAll();loadDBs();
+  }catch(e){toast(e.message)}
+}
+async function delDB(id){
+  if(!confirm('删除数据库 '+id+' 及其账号？数据将不可恢复！'))return;
+  try{await api('DELETE','api/dbs/'+encodeURIComponent(id));toast('已删除',true);loadDBs()}
+  catch(e){toast(e.message)}
+}
+function openPwdDB(id){
+  const d=dbs.find(x=>x.id===id);if(!d)return;
+  const p=prompt('为账号 '+d.user+' 设置新密码（8-64 位）');
+  if(p===null)return;
+  api('PUT','api/dbs/'+encodeURIComponent(id)+'/password',{password:p})
+    .then(()=>{toast('密码已修改',true);loadDBs()})
+    .catch(e=>toast(e.message));
+}
+async function openMySQL(){
+  $('mMySQL').classList.add('show');
+  await loadMySQLStatus();
+}
+async function loadMySQLStatus(){
+  try{
+    const s=await api('GET','api/mysql/status');
+    $('myEnabled').checked=!!s.enabled;
+    $('myPort').value=s.port||3306;
+    $('myIdle').value=s.idleStopSecs||300;
+    $('myWarn').style.display='none';
+    let st='<span class="dot '+(s.running?'on':'off')+'"></span>'+(s.running?'mysqld 运行中':'mysqld 未运行');
+    if(!s.available){
+      st='<span class="dot off"></span>未检测到 mysqld';
+      $('myWarn').textContent='服务器未安装数据库服务端。Alpine: apk add mariadb mariadb-client，安装后重启本插件。';
+      $('myWarn').style.display='block';
+    }else if(s.enabled&&!s.running){
+      st+='（按需待命，连接到达自动拉起）';
+    }
+    if(s.proxyErr){
+      st+='<div class="hint" style="color:var(--err)">唤醒代理监听失败：'+esc(s.proxyErr)+'</div>';
+    }
+    if(s.running){
+      st+='<div class="hint">内存占用 '+(s.rssKB?(s.rssKB/1024).toFixed(1)+' MB':'-')+' · 活跃连接 '+s.activeConns+' · 空闲 '+s.idleStopSecs+'s 后自动停止</div>';
+    }else if(s.enabled&&s.available){
+      st+='<div class="hint">待命状态零内存占用；数据保留在磁盘</div>';
+    }
+    $('myStatus').innerHTML=st;
+  }catch(e){$('myStatus').textContent=e.message}
+}
+async function toggleMySQL(on){
+  try{
+    await api('PUT','api/mysql/config',{enabled:on});
+    toast(on?'数据库运行时已启用（待命零占用）':'数据库运行时已关闭，mysqld 已停止',true);
+    loadMySQLStatus();
+  }catch(e){toast(e.message);$('myEnabled').checked=!on;loadMySQLStatus()}
+}
+async function saveMySQLCfg(){
+  try{
+    await api('PUT','api/mysql/config',{
+      port:parseInt($('myPort').value,10),
+      idleStopSecs:parseInt($('myIdle').value,10)
+    });
+    toast('数据库参数已保存',true);loadMySQLStatus();
+  }catch(e){toast(e.message)}
+}
+async function stopMySQL(){
+  try{await api('POST','api/mysql/stop');toast('mysqld 已停止（下次连接自动唤醒）',true);loadMySQLStatus()}
+  catch(e){toast(e.message)}
+}
+
+refresh();
+setInterval(refresh,10000);
+if(mainTab==='dbs')loadDBs();
+</script>
+</body>
+</html>

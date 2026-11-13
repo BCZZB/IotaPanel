@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 守护</title>
+<style>
+:root{
+  --bg:#faf6ef; --card:#fff; --ink:#3d3529; --muted:#8a7d6a;
+  --brand:#8b6f47; --brand-2:#b8925e; --line:#ece4d4;
+  --ok:#4a8f5c; --warn:#c07f3a; --bad:#b5563f;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+.wrap{max-width:1160px;margin:0 auto;padding:16px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.logo{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:600}
+.logo .em{font-size:22px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:#ccc}
+.dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
+.spacer{flex:1}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-size:13px;padding:7px 14px;background:var(--brand);color:#fff;transition:.15s}
+button:hover{background:var(--brand-2)}
+button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+button.ghost:hover{border-color:var(--brand-2)}
+button.mini{padding:4px 10px;font-size:12px;border-radius:6px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.navtabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.navtab{padding:8px 16px;border-radius:10px;background:var(--card);border:1px solid var(--line);cursor:pointer;font-size:13px;color:var(--muted);user-select:none;transition:.15s}
+.navtab:hover{border-color:var(--brand-2)}
+.navtab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.panel h3{font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.panel h3 .sub{font-size:12px;color:var(--muted);font-weight:400}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.stat .v{font-size:24px;font-weight:700;margin:4px 0}
+.stat .l{font-size:12px;color:var(--muted)}
+.stat.warn .v{color:var(--warn)} .stat.bad .v{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.chart-box svg{width:100%;height:130px;display:block}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px}
+.badge.ok{background:#e7f2ea;color:var(--ok)}
+.badge.warn{background:#f9efdf;color:var(--warn)}
+.badge.critical,.badge.error{background:#f7e6e1;color:var(--bad)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th,.tbl td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
+.tbl th{color:var(--muted);font-weight:500;font-size:12px}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .r{text-align:right}
+.muted{color:var(--muted);font-size:12px}
+.report-card{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;background:#fdfbf7}
+.report-card .head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.report-card .summary{font-size:14px;margin-bottom:8px}
+.report-card ul{padding-left:18px;margin:6px 0}
+.report-card li{font-size:13px;margin:3px 0;line-height:1.5}
+.report-card .sec{font-size:12px;color:var(--brand);font-weight:600;margin-top:8px}
+.hist-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px;background:var(--card)}
+.hist-item:hover{border-color:var(--brand-2)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:800px){.form{grid-template-columns:1fr}}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.field input,.field select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff;color:var(--ink)}
+.field input:focus{outline:none;border-color:var(--brand-2)}
+.full{grid-column:1/-1}
+.switch-row{display:flex;align-items:center;gap:10px;padding:10px 0}
+.switch{width:40px;height:22px;border-radius:999px;background:#cfc6b5;position:relative;cursor:pointer;transition:.2s;flex-shrink:0}
+.switch.on{background:var(--ok)}
+.switch .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch.on .knob{left:20px}
+.hint-box{background:#fdf8ec;border:1px solid #eedfba;border-radius:8px;padding:10px 14px;font-size:13px;color:#8a6d3b;line-height:1.6;margin-bottom:14px}
+.logbox{background:#2d2a24;color:#d6cfc0;border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;max-height:300px;overflow:auto;white-space:pre-wrap;line-height:1.6}
+.plug-bar{height:8px;border-radius:99px;background:#f0e9da;overflow:hidden;margin-top:4px}
+.plug-bar i{display:block;height:100%;background:var(--brand-2);border-radius:99px}
+.toast{position:fixed;top:18px;right:18px;padding:10px 16px;border-radius:10px;background:#3d3529;color:#fff;font-size:13px;opacity:0;transition:.25s;z-index:99;max-width:340px}
+.toast.show{opacity:1}
+#load{ text-align:center;padding:40px;color:var(--muted) }
+.plug-empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo"><span class="em">🤖</span>AI 守护</div>
+    <div class="chip"><span class="dot" id="probeDot"></span><span id="probeText">检测中…</span></div>
+    <div class="chip" id="aiChip">AI: 检测中…</div>
+    <div class="spacer"></div>
+    <button class="ghost mini" onclick="loadAll(true)">刷新</button>
+    <button class="mini" onclick="analyzeNow()">⚡ 立即分析</button>
+  </div>
+
+  <div class="navtabs">
+    <div class="navtab active" data-nav="dash">📊 仪表盘</div>
+    <div class="navtab" data-nav="report">🧠 AI 报告<span class="cnt" style="display:none"></span></div>
+    <div class="navtab" data-nav="plugins">🧩 插件管理</div>
+    <div class="navtab" data-nav="settings">⚙️ 设置</div>
+    <div class="navtab" data-nav="logs">📜 探针日志</div>
+  </div>
+
+  <!-- 仪表盘 -->
+  <div id="nav-dash">
+    <div class="cards" id="statCards"></div>
+    <div class="grid2">
+      <div class="panel">
+        <h3>CPU 使用率 <span class="sub" id="cpuRange">最近趋势</span></h3>
+        <div class="chart-box" id="chartCPU"></div>
+      </div>
+      <div class="panel">
+        <h3>内存使用率 <span class="sub">最近趋势</span></h3>
+        <div class="chart-box" id="chartMEM"></div>
+      </div>
+      <div class="panel">
+        <h3>网络流量 <span class="sub">KB/s</span></h3>
+        <div class="chart-box" id="chartNET"></div>
+        <div class="legend"><span>⬇ 下行</span><span style="color:var(--brand-2)">⬆ 上行</span></div>
+      </div>
+      <div class="panel">
+        <h3>插件内存占用 <span class="sub">最新采样</span></h3>
+        <div id="plugRSS"><div class="plug-empty">加载中…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 报告 -->
+  <div id="nav-report" style="display:none">
+    <div id="reportLatest"></div>
+    <div class="panel">
+      <h3>历史报告</h3>
+      <div id="reportHist"><div class="plug-empty">暂无报告</div></div>
+    </div>
+  </div>
+
+  <!-- 插件管理 -->
+  <div id="nav-plugins" style="display:none">
+    <div class="hint-box">
+      优雅启停说明：「停止」发送 SIGTERM 让插件按规范优雅退出；「启动」优先通过面板懒启动，面板不可用时直接托管拉起(面板重启后自动接管)。
+    </div>
+    <div class="panel">
+      <table class="tbl">
+        <thead><tr>
+          <th style="width:170px">插件</th><th style="width:110px">状态</th>
+          <th style="width:110px">内存</th><th>监管范围</th>
+          <th style="width:190px;text-align:right">操作</th>
+        </tr></thead>
+        <tbody id="pluginBody"><tr><td colspan="5" class="plug-empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div id="nav-settings" style="display:none">
+    <div class="hint-box">
+      采集与 AI 分析由常驻探针执行，保存后自动通知探针热重载，无需重启。AI 需配置 OpenAI 兼容接口(如 DeepSeek / 通义 / OpenAI / Ollama)。
+    </div>
+    <div class="panel">
+      <h3>基础</h3>
+      <div class="form">
+        <div class="field"><label>采样间隔(秒, ≥5)</label><input id="cfgSample" type="number" min="5"></div>
+        <div class="field"><label>AI 分析周期(秒, ≥60)</label><input id="cfgAiInterval" type="number" min="60"></div>
+        <div class="field"><label>面板地址(懒启动插件用)</label><input id="cfgPanel" placeholder="http://127.0.0.1:8787"></div>
+        <div class="field"><label>监管白名单(逗号分隔, * 为全部)</label><input id="cfgWatch" placeholder="app-store,waf"></div>
+      </div>
+      <div class="switch-row">
+        <div class="switch" id="swAuto"><div class="knob"></div></div>
+        <div>
+          <div style="font-size:13px">自动执行 AI 建议动作</div>
+          <div class="muted">开启后，AI 报告中的 stop_plugin / start_plugin 动作将按白名单自动执行，请谨慎</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>AI 模型 <span class="sub">OpenAI 兼容 Chat API</span></h3>
+      <div class="form">
+        <div class="field full"><label>接口地址 Base URL</label><input id="cfgAiUrl" placeholder="https://api.deepseek.com/v1"></div>
+        <div class="field"><label>API Key</label><input id="cfgAiKey" type="password" placeholder="sk-…"></div>
+        <div class="field"><label>模型</label><input id="cfgAiModel" placeholder="deepseek-chat"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px">
+        <button onclick="saveConfig()">保存配置</button>
+        <button class="ghost" onclick="loadConfig()">重置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日志 -->
+  <div id="nav-logs" style="display:none">
+    <div class="panel">
+      <h3>探针日志 <button class="ghost mini" style="margin-left:auto" onclick="loadLog()">刷新</button></h3>
+      <div class="logbox" id="logBox">加载中…</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let curNav='dash', autoAct=false, configLoaded=false;
+
+/* ---------- 通用 ---------- */
+function toast(msg,ok){const t=$('toast');t.textContent=msg;t.style.background=ok===false?'#b5563f':'#3d3529';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
+async function api(path,opts){
+  const r=await fetch(path,Object.assign({headers:{'Content-Type':'application/json'}},opts||{}));
+  const j=await r.json();
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- 导航 ---------- */
+document.querySelectorAll('.navtab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.navtab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  curNav=t.dataset.nav;
+  ['dash','report','plugins','settings','logs'].forEach(n=>$('nav-'+n).style.display=n===curNav?'':'none');
+  loadAll(true);
+});
+
+/* ---------- SVG 折线图 ---------- */
+function svgChart(el,series,opts){
+  opts=opts||{};
+  const W=520,H=130,P=4;
+  let max=0.1;series.forEach(s=>s.data.forEach(v=>{if(v>max)max=v}));
+  if(opts.max!=null)max=Math.max(max,opts.max);
+  let g='';
+  [0.25,0.5,0.75].forEach(f=>{const y=H*f;g+=`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#efe8d8" stroke-width="1"/>`});
+  series.forEach(s=>{
+    if(!s.data.length)return;
+    const n=s.data.length,step=n>1?(W-2*P)/(n-1):0;
+    let pts=s.data.map((v,i)=>`${(P+i*step).toFixed(1)},${(H-P-(v/max)*(H-2*P-14)).toFixed(1)}`).join(' ');
+    if(s.fill){
+      g+=`<polygon points="${P},${H} ${pts} ${P+(n-1)*step},${H}" fill="${s.color}" opacity="0.10"/>`;
+    }
+    g+=`<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+  const last=series[0].data.length?series[0].data[series[0].data.length-1]:0;
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    ${g}
+    <text x="${W-4}" y="14" text-anchor="end" font-size="15" font-weight="700" fill="#8b6f47">${last.toFixed(1)}${opts.unit||''}</text>
+  </svg>`;
+}
+
+/* ---------- 仪表盘 ---------- */
+async function loadStatus(){
+  try{
+    const s=await api('/api/status');
+    const dot=$('probeDot');
+    if(s.probeRunning){dot.className='dot on';$('probeText').textContent=`探针运行中 · ${s.probeRSSKB}KB · 已运行 ${s.probeUptime}`;}
+    else{dot.className='dot off';$('probeText').textContent='探针未运行';}
+    $('aiChip').textContent='AI: '+(s.aiConfigured?`已配置 · 周期${fmtDur(s.aiInterval)}`:'未配置');
+    $('aiChip').style.color=s.aiConfigured?'var(--ok)':'var(--warn)';
+    const cards=[];
+    const last=window._lastSample;
+    if(last){
+      const cls=v=>v>=90?'bad':v>=70?'warn':'';
+      cards.push(`<div class="stat ${cls(last.cpu)}"><div class="l">CPU 使用率</div><div class="v">${last.cpu}%</div><div class="muted">负载 ${last.load1} / ${last.load5}</div></div>`);
+      cards.push(`<div class="stat ${cls(last.mem)}"><div class="l">内存</div><div class="v">${last.mem}%</div><div class="muted">${last.memUsedMB} / ${last.memTotalMB} MB</div></div>`);
+      cards.push(`<div class="stat ${cls(last.diskRoot)}"><div class="l">磁盘 /</div><div class="v">${last.diskRoot}%</div><div class="muted">数据盘 ${last.diskData}%</div></div>`);
+      cards.push(`<div class="stat"><div class="l">网络</div><div class="v" style="font-size:18px">⬇${last.rxKBs} ⬆${last.txKBs}</div><div class="muted">KB/s · 采样 ${s.lastSampleTime||'—'}</div></div>`);
+    }
+    cards.push(`<div class="stat"><div class="l">探针占用</div><div class="v">${s.probeRSSKB}KB</div><div class="muted">极低常驻 · 样本 ${s.sampleCount} 条</div></div>`);
+    cards.push(`<div class="stat"><div class="l">AI 分析</div><div class="v" style="font-size:18px">${s.aiConfigured?'✓ 就绪':'未配置'}</div><div class="muted">周期 ${fmtDur(s.aiInterval)} · 报告 ${s.reportCount} 份</div></div>`);
+    $('statCards').innerHTML=cards.join('');
+  }catch(e){console.error(e)}
+}
+function fmtDur(sec){if(sec>=3600)return (sec/3600)+'小时';if(sec>=60)return (sec/60)+'分钟';return sec+'秒'}
+
+async function loadMetrics(){
+  try{
+    const r=await api('/api/metrics?count=480');
+    const ss=r.samples||[];
+    if(!ss.length){$('plugRSS').innerHTML='<div class="plug-empty">暂无采样,探针启动后 30 秒内出现第一批数据</div>';return}
+    window._lastSample=ss[ss.length-1];
+    svgChart($('chartCPU'),[{data:ss.map(x=>x.cpu),color:'#8b6f47',fill:true}],{unit:'%'});
+    svgChart($('chartMEM'),[{data:ss.map(x=>x.mem),color:'#4a8f5c',fill:true}],{unit:'%'});
+    svgChart($('chartNET'),[{data:ss.map(x=>x.rxKBs),color:'#8b6f47',fill:true},{data:ss.map(x=>x.txKBs),color:'#b8925e'}],{unit:''});
+    // 插件 RSS
+    const plug=ss[ss.length-1].plug||[];
+    if(!plug.length){$('plugRSS').innerHTML='<div class="plug-empty">暂无其他插件在运行</div>'}
+    else{
+      const max=Math.max(...plug.map(p=>p.rssKB),1);
+      $('plugRSS').innerHTML=plug.sort((a,b)=>b.rssKB-a.rssKB).map(p=>`
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px">
+            <span>${esc(p.name)}${p.pids>1?` <span class="muted">×${p.pids}</span>`:''}</span>
+            <span class="muted">${(p.rssKB/1024).toFixed(1)} MB</span>
+          </div>
+          <div class="plug-bar"><i style="width:${Math.max(4,p.rssKB/max*100)}%"></i></div>
+        </div>`).join('');
+    }
+    loadStatus();
+  }catch(e){console.error(e)}
+}
+
+/* ---------- AI 报告 ---------- */
+async function loadReport(){
+  try{
+    const r=await api('/api/report');
+    const l=r.latest;
+    if(!l){
+      $('reportLatest').innerHTML=`<div class="panel"><div class="plug-empty">暂无 AI 报告<br><span class="muted">${esc('配置 AI 后每个分析周期自动生成,或点击右上角「立即分析」')}</span></div></div>`;
+    }else{
+      $('reportLatest').innerHTML=renderReport(l,true);
+    }
+    const list=r.list||[];
+    $('reportHist').innerHTML=list.length?list.map(x=>`
+      <div class="hist-item" onclick="showReport('${esc(x.id)}')">
+        <span class="badge ${x.verdict}">${verdictCN(x.verdict)}</span>
+        <span class="muted">${esc(x.time.replace('T',' ').slice(5,16))}</span>
+        <span style="flex:1">${esc(x.summary||x.err||'')}</span>
+        <span class="muted">›</span>
+      </div>`).join(''):'<div class="plug-empty">暂无历史</div>';
+  }catch(e){console.error(e)}
+}
+async function showReport(id){
+  try{
+    const r=await api('/api/report?id='+encodeURIComponent(id));
+    $('reportLatest').innerHTML=renderReport(r,true);
+    window.scrollTo({top:0,behavior:'smooth'});
+  }catch(e){toast(e.message,false)}
+}
+function verdictCN(v){return{ok:'正常',warn:'警告',critical:'严重',error:'出错'}[v]||v}
+function renderReport(r,detail){
+  const acts=(r.actions||[]).map(a=>`<li>建议 <b>${a.type==='stop_plugin'?'停止':'启动'} ${esc(a.target)}</b> — ${esc(a.reason)}</li>`).join('');
+  const execs=(r.executed||[]).map(e=>`<li>已执行 <b>${e.action.type==='stop_plugin'?'停止':'启动'} ${esc(e.action.target)}</b> → ${esc(e.result)}</li>`).join('');
+  return `<div class="panel">
+    <div class="head" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <h3 style="margin:0">最新报告</h3>
+      <span class="badge ${r.verdict}">${verdictCN(r.verdict)}</span>
+      <span class="muted">${esc(r.time.replace('T',' ').slice(0,19))} · 模型 ${esc(r.model||'—')}</span>
+    </div>
+    ${r.err?`<div class="hint-box">⚠️ ${esc(r.err)}</div>`:''}
+    ${r.summary?`<div style="font-size:15px;margin-bottom:10px">${esc(r.summary)}</div>`:''}
+    ${(r.issues&&r.issues.length)?`<div class="sec" style="font-size:12px;color:var(--bad);font-weight:600;margin-bottom:4px">发现问题</div><ul style="padding-left:18px;font-size:13px;line-height:1.7">${r.issues.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:''}
+    ${(r.recommendations&&r.recommendations.length)?`<div class="sec" style="font-size:12px;color:var(--brand);font-weight:600;margin:8px 0 4px">建议</div><ul style="padding-left:18px;font-size:13px;line-height:1.7">${r.recommendations.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:''}
+    ${acts?`<div class="sec" style="font-size:12px;color:var(--warn);font-weight:600;margin:8px 0 4px">AI 建议动作</div><ul style="padding-left:18px;font-size:13px;line-height:1.7">${acts}</ul>`:''}
+    ${execs?`<div class="sec" style="font-size:12px;color:var(--ok);font-weight:600;margin:8px 0 4px">已自动执行</div><ul style="padding-left:18px;font-size:13px;line-height:1.7">${execs}</ul>`:''}
+  </div>`;
+}
+
+/* ---------- 插件管理 ---------- */
+async function loadPlugins(){
+  try{
+    const r=await api('/api/plugins');
+    const ps=r.plugins||[];
+    if(!ps.length){$('pluginBody').innerHTML='<tr><td colspan="5" class="plug-empty">未发现其他插件</td></tr>';return}
+    $('pluginBody').innerHTML=ps.map(p=>`
+      <tr>
+        <td><b>${esc(p.title||p.name)}</b><div class="muted">${esc(p.name)}</div></td>
+        <td>${p.running?'<span class="badge ok">运行中</span>':'<span class="badge warn">已停止</span>'}</td>
+        <td>${p.running?(p.rssKB/1024).toFixed(1)+' MB':'—'}</td>
+        <td>${p.watched?'<span class="badge ok">✓ AI 可管</span>':'<span class="muted">白名单外</span>'}</td>
+        <td class="r">
+          ${p.running
+            ?`<button class="ghost mini" onclick="plugAction('${esc(p.name)}','stop')">⏹ 优雅停止</button>`
+            :`<button class="mini" onclick="plugAction('${esc(p.name)}','start')">▶ 启动</button>`}
+        </td>
+      </tr>`).join('');
+  }catch(e){$('pluginBody').innerHTML=`<tr><td colspan="5" class="plug-empty">${esc(e.message)}</td></tr>`}
+}
+async function plugAction(name,action){
+  if(action==='stop'&&!confirm(`确定优雅停止插件 ${name} 吗?`))return;
+  try{
+    const r=await api('/api/plugin/action',{method:'POST',body:JSON.stringify({name,action})});
+    toast(`${name}: ${r.result}`,true);
+    setTimeout(loadPlugins,1500);
+  }catch(e){toast(e.message,false)}
+}
+
+/* ---------- 设置 ---------- */
+async function loadConfig(){
+  try{
+    const c=await api('/api/config');
+    $('cfgSample').value=c.sample_interval;
+    $('cfgAiInterval').value=c.ai_interval;
+    $('cfgPanel').value=c.panel_addr;
+    $('cfgWatch').value=(c.watch||[]).join(',');
+    $('cfgAiUrl').value=c.ai.base_url||'';
+    $('cfgAiKey').value=c.ai.api_key||'';
+    $('cfgAiKey').placeholder=c.ai.api_key?'已配置(****)':'sk-…';
+    $('cfgAiModel').value=c.ai.model||'';
+    autoAct=!!c.auto_act;
+    $('swAuto').classList.toggle('on',autoAct);
+    configLoaded=true;
+  }catch(e){toast(e.message,false)}
+}
+$('swAuto').onclick=()=>{autoAct=!autoAct;$('swAuto').classList.toggle('on',autoAct)};
+async function saveConfig(){
+  const body={
+    sample_interval:+$('cfgSample').value||30,
+    ai_interval:+$('cfgAiInterval').value||900,
+    panel_addr:$('cfgPanel').value.trim(),
+    watch:$('cfgWatch').value.split(',').map(s=>s.trim()).filter(Boolean),
+    auto_act:autoAct,
+    ai_base_url:$('cfgAiUrl').value.trim(),
+    ai_model:$('cfgAiModel').value.trim(),
+  };
+  const key=$('cfgAiKey').value.trim();
+  if(key&&!key.startsWith('****'))body.ai_api_key=key;
+  try{
+    const r=await api('/api/config',{method:'POST',body:JSON.stringify(body)});
+    toast(r.result,true);
+    loadConfig();loadStatus();
+  }catch(e){toast(e.message,false)}
+}
+
+/* ---------- 其他 ---------- */
+async function analyzeNow(){
+  try{
+    const r=await api('/api/analyze',{method:'POST',body:'{}'});
+    toast(r.result,true);
+    setTimeout(()=>{loadReport();loadStatus()},6000);
+  }catch(e){toast(e.message,false)}
+}
+async function loadLog(){
+  try{
+    const r=await api('/api/probe/log');
+    $('logBox').textContent=r.log||'(空)';
+  }catch(e){$('logBox').textContent=e.message}
+}
+
+function loadAll(force){
+  if(curNav==='dash'){loadStatus();loadMetrics()}
+  else if(curNav==='report')loadReport();
+  else if(curNav==='plugins')loadPlugins();
+  else if(curNav==='settings'&&!configLoaded)loadConfig();
+  else if(curNav==='logs')loadLog();
+}
+loadAll();
+setInterval(()=>{if(curNav==='dash')loadMetrics()},30000);
+</script>
+</body>
+</html>

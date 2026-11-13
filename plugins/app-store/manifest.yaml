@@ -1,0 +1,13 @@
+name: app-store
+title: Docker 管理器
+version: 1.5.0
+author: BCZZB
+description: 参考宝塔 Docker 模块打造的 Docker 管理器：应用商店一键部署、容器列表管理(启动/停止/重启/删除/日志/详情)、本地镜像管理、Docker Hub 线上镜像搜索拉取，低占用单二进制
+language: go
+command: bin/app-store
+bind: 127.0.0.1
+menus:
+  - title: Docker 管理器
+    icon: 🐳
+    path: /
+    section: tools

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>微盾 WAF · IotaPanel</title>
+<style>
+  :root {
+    --bg:#f6f4ef; --card:#fff; --text:#33393f; --muted:#7e8a94;
+    --accent:#5e7f58; --ok:#5e7f58; --warn:#c9922a; --err:#c46a5a;
+    --border:#e4e0d6; --chip:#efece4;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; min-height:100vh; padding:24px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:20px; margin-bottom:4px; background:linear-gradient(135deg,#7a9b7a,#5e7f58);
+    color:#fff; padding:18px 22px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+  .sub { color:var(--muted); font-size:13px; margin:14px 2px 18px; line-height:1.6; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; }
+  .field { flex:1; min-width:200px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+  input, select, textarea { width:100%; background:#f6f4ef; border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:9px 11px; font-size:14px; font-family:inherit; }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
+  .hint { font-size:12px; color:var(--muted); margin-top:5px; line-height:1.6; }
+  button { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:9px 20px;
+    font-size:14px; cursor:pointer; font-family:inherit; }
+  button:hover { opacity:.9; }
+  button.ghost { background:var(--chip); color:var(--text); }
+  button.danger { background:var(--err); }
+  button.small { padding:5px 12px; font-size:12px; }
+  #msg { margin-top:12px; font-size:13px; min-height:18px; }
+  #msg.ok { color:var(--ok); } #msg.err { color:var(--err); }
+
+  /* Tabs */
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+  .tab { padding:9px 18px; border-radius:8px; cursor:pointer; font-size:14px; color:var(--muted);
+    background:var(--card); border:1px solid var(--border); user-select:none; }
+  .tab.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .panel { display:none; }
+  .panel.on { display:block; }
+
+  /* 状态卡 */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat .k { font-size:12px; color:var(--muted); }
+  .stat .v { font-size:24px; font-weight:600; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .stat .v.ok { color:var(--ok); } .stat .v.warn { color:var(--warn); } .stat .v.err { color:var(--err); }
+
+  .modebar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .badge { display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:999px;
+    font-size:13px; font-weight:600; }
+  .badge.probe { background:#e8f0e7; color:#4a6b45; }
+  .badge.guard { background:#f9e9d9; color:#a06a2a; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+  .dot { width:8px; height:8px; border-radius:50%; background:currentColor; }
+
+  /* 表格 */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  td { padding:8px 10px; border-bottom:1px dashed #eee9dd; vertical-align:top; }
+  tr:hover td { background:#faf8f3; }
+  .scroll { max-height:420px; overflow:auto; border:1px solid var(--border); border-radius:8px; }
+  .scroll table { margin:0; }
+  .scroll th { position:sticky; top:0; background:var(--card); z-index:1; }
+
+  .kind { display:inline-block; padding:2px 9px; border-radius:4px; font-size:11px; font-weight:600; color:#fff; }
+  .kind.block { background:var(--err); } .kind.monitor { background:var(--warn); }
+  .kind.challenge { background:#8a7ab5; } .kind.ban { background:#8a4a3a; }
+  .kind.escalate { background:#a06a2a; } .kind.deescalate { background:#5a8a7a; }
+
+  .switch { position:relative; width:40px; height:22px; background:#d8d2c4; border-radius:999px;
+    cursor:pointer; transition:.2s; flex-shrink:0; }
+  .switch.on { background:var(--accent); }
+  .switch::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px;
+    background:#fff; border-radius:50%; transition:.2s; }
+  .switch.on::after { left:20px; }
+  .switchrow { display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:12px 4px; border-bottom:1px dashed var(--border); }
+  .switchrow:last-child { border-bottom:none; }
+  .switchrow .t { font-size:14px; font-weight:600; }
+  .switchrow .d { font-size:12px; color:var(--muted); margin-top:3px; line-height:1.5; }
+  .switchrow .c { font-size:11px; color:var(--muted); background:var(--chip); border-radius:4px; padding:1px 7px; margin-left:8px; }
+
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+  .toolbar input, .toolbar select { width:auto; min-width:140px; }
+  code { background:var(--chip); padding:1px 6px; border-radius:4px; font-size:12px; }
+  .empty { padding:26px; text-align:center; color:var(--muted); font-size:13px; }
+  .sitebox { border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px; background:#fbfaf7; }
+  .sitebox .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .sitebox .head b { font-size:14px; }
+  .actions { display:flex; gap:8px; }
+  .sev-high { color:var(--err); font-weight:600; }
+  .sev-medium { color:var(--warn); font-weight:600; }
+  .sev-low { color:var(--muted); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>
+    <span>🛡️ 微盾 WAF</span>
+    <span style="font-size:13px;font-weight:400" id="mode-tip">雷池式轻量防护 · 低占用探针</span>
+  </h1>
+  <div class="sub">
+    平时仅保留低占用探针（纯 TCP 直通 + 特征快扫）；检测到可疑请求自动升级全量防护
+    （深度解码 + 规则引擎 + CC 挑战）；威胁平息后自动降级，释放算力。
+  </div>
+
+  <div class="tabs" id="tabs">
+    <div class="tab on" data-t="ov">总览</div>
+    <div class="tab" data-t="sites">站点</div>
+    <div class="tab" data-t="rules">规则</div>
+    <div class="tab" data-t="ips">IP 名单</div>
+    <div class="tab" data-t="cfg">设置</div>
+  </div>
+
+  <!-- ============ 总览 ============ -->
+  <div class="panel on" id="p-ov">
+    <div class="card">
+      <div class="modebar">
+        <span class="badge probe" id="badge"><span class="dot"></span><span id="mode-text">探针模式</span></span>
+        <span style="font-size:13px;color:var(--muted)" id="guard-remain"></span>
+        <span style="flex:1"></span>
+        <button class="ghost small" id="btn-mode">切换到防护模式</button>
+        <button class="ghost small" onclick="resetStats()">清零统计</button>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="card">
+      <h2>📋 攻击事件</h2>
+      <div class="toolbar">
+        <select id="ev-kind" onchange="loadEvents()">
+          <option value="">全部类型</option>
+          <option value="block">拦截</option>
+          <option value="monitor">观察</option>
+          <option value="challenge">人机验证</option>
+          <option value="ban">自动拉黑</option>
+          <option value="escalate">升级</option>
+          <option value="deescalate">降级</option>
+        </select>
+        <input id="ev-q" placeholder="搜索 IP / 路径 / 规则…" oninput="debounceEv()">
+        <span class="hint" id="ev-tip">每 5 秒自动刷新</span>
+      </div>
+      <div class="scroll"><table id="ev-table">
+        <thead><tr><th style="width:140px">时间</th><th style="width:70px">类型</th><th style="width:120px">IP</th>
+        <th style="width:150px">规则</th><th>详情</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ============ 站点 ============ -->
+  <div class="panel" id="p-sites">
+    <div class="card">
+      <h2>🌐 保护站点 <button class="small" style="margin-left:auto" onclick="addSite()">+ 添加站点</button></h2>
+      <div id="sites"></div>
+      <div class="hint">域名支持 <code>example.com</code>、<code>*.example.com</code> 与 <code>*</code>（兜底）；
+      上游为源站地址（host:port）；模式：<b>拦截</b>=命中即阻断，<b>观察</b>=只记录不阻断，<b>关闭</b>=完全不检测。</div>
+      <div style="margin-top:14px"><button onclick="saveConfig()">保存站点配置</button></div>
+      <div id="msg-sites"></div>
+    </div>
+  </div>
+
+  <!-- ============ 规则 ============ -->
+  <div class="panel" id="p-rules">
+    <div class="card">
+      <h2>🧩 内置规则组（12 组）</h2>
+      <div id="groups"></div>
+      <div style="margin-top:14px"><button onclick="saveConfig()">保存规则组开关</button></div>
+      <div id="msg-rules"></div>
+    </div>
+    <div class="card">
+      <h2>✍️ 自定义规则 <button class="small" style="margin-left:auto" onclick="addCustom()">+ 添加规则</button></h2>
+      <div id="customs"></div>
+      <div class="hint">正则使用 Go RE2 语法（线性时间，无回溯风险）。目标：<code>all</code> / <code>path</code> /
+      <code>query</code> / <code>headers</code> / <code>ua</code> / <code>referer</code> / <code>cookie</code> / <code>body</code>。</div>
+      <div style="margin-top:14px"><button onclick="saveConfig()">保存自定义规则</button></div>
+    </div>
+  </div>
+
+  <!-- ============ IP 名单 ============ -->
+  <div class="panel" id="p-ips">
+    <div class="card">
+      <h2>⛔ IP 黑名单</h2>
+      <div class="toolbar">
+        <input id="bl-cidr" placeholder="IP 或 CIDR，如 1.2.3.4 或 10.0.0.0/8" style="flex:1;min-width:200px">
+        <input id="bl-reason" placeholder="备注（可选）" style="flex:1;min-width:140px">
+        <button class="small" onclick="ipAdd('black')">加入黑名单</button>
+      </div>
+      <div class="scroll"><table><thead><tr><th style="width:200px">IP / CIDR</th><th>备注</th><th style="width:170px">到期</th><th style="width:60px"></th></tr></thead>
+      <tbody id="bl-body"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>✅ IP 白名单</h2>
+      <div class="toolbar">
+        <input id="wl-cidr" placeholder="IP 或 CIDR" style="flex:1;min-width:200px">
+        <input id="wl-reason" placeholder="备注（可选）" style="flex:1;min-width:140px">
+        <button class="small" onclick="ipAdd('white')">加入白名单</button>
+      </div>
+      <div class="hint">白名单 IP 跳过一切检测（含 CC 与规则引擎），请谨慎添加。</div>
+      <div class="scroll"><table><thead><tr><th style="width:200px">IP / CIDR</th><th>备注</th><th style="width:60px"></th></tr></thead>
+      <tbody id="wl-body"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ============ 设置 ============ -->
+  <div class="panel" id="p-cfg">
+    <div class="card">
+      <h2>⚙️ 引擎与入口</h2>
+      <div class="row">
+        <div class="field"><label>HTTP 入口（对外）</label><input id="c-http" placeholder=":80"></div>
+        <div class="field"><label>HTTPS 入口（对外，可留空）</label><input id="c-https" placeholder=":443"></div>
+        <div class="field"><label>防护冷静期（秒）</label><input id="c-calm" type="number"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>请求体检测上限（字节）</label><input id="c-bodymax" type="number"></div>
+        <div class="field"><label>全局连接速率阈值（个/分钟）</label><input id="c-connrate" type="number"></div>
+        <div class="field"><label>部署在受信反代之后（信任 X-Forwarded-For）</label>
+          <select id="c-trust"><option value="false">否（默认）</option><option value="true">是</option></select></div>
+      </div>
+      <div class="hint">保存后流量入口端口变更会自动重建监听；其余配置热更新，不中断流量。</div>
+    </div>
+    <div class="card">
+      <h2>🚦 CC 防护与人机验证</h2>
+      <div class="row">
+        <div class="field"><label>启用 CC 防护</label>
+          <select id="c-cc-on"><option value="true">启用</option><option value="false">停用</option></select></div>
+        <div class="field"><label>窗口内最大请求数</label><input id="c-cc-cap" type="number"></div>
+        <div class="field"><label>统计窗口（秒）</label><input id="c-cc-win" type="number"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>超限动作</label>
+          <select id="c-cc-act"><option value="challenge">人机验证（推荐）</option><option value="block">直接拦截</option></select></div>
+        <div class="field"><label>PoW 难度（位，8-24）</label><input id="c-cc-bits" type="number"></div>
+        <div class="field"><label>验证有效期（秒）</label><input id="c-cc-verify" type="number"></div>
+      </div>
+      <div class="hint">人机验证：超频客户端收到挑战页，浏览器 JS 毫秒级算出工作量证明即放行；
+      不执行 JS 的爬虫/洪水工具会被卡住。</div>
+    </div>
+    <div class="card">
+      <h2>🔨 自动拉黑</h2>
+      <div class="row">
+        <div class="field"><label>启用自动拉黑</label>
+          <select id="c-ab-on"><option value="false">停用</option><option value="true">启用</option></select></div>
+        <div class="field"><label>窗口内拦截次数阈值</label><input id="c-ab-th" type="number"></div>
+        <div class="field"><label>统计窗口（秒）</label><input id="c-ab-win" type="number"></div>
+        <div class="field"><label>拉黑时长（分钟）</label><input id="c-ab-min" type="number"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>📄 拦截页文案</h2>
+      <div class="field"><label>标题</label><input id="c-bp-title"></div>
+      <div class="field"><label>第一行</label><input id="c-bp-l1"></div>
+      <div class="field"><label>第二行</label><input id="c-bp-l2"></div>
+    </div>
+    <div class="card">
+      <button onclick="saveConfig()">保存全部设置</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 相对路径定位 API（兼容面板子路径反代 /p/waf/ 与独立直连两种访问方式）
+const BASE = location.pathname.replace(/index\.html$/, '').replace(/\/$/, '');
+const API = p => BASE + p;
+
+let cfg = null, evTimer = null;
+
+// ---------- Tab ----------
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x => x.classList.remove('on'));
+  t.classList.add('on');
+  document.getElementById('p-' + t.dataset.t).classList.add('on');
+});
+
+// ---------- 状态 ----------
+async function loadStatus() {
+  try {
+    const r = await fetch(API('/api/status'));
+    const s = await r.json();
+    const guard = s.mode === 'guard';
+    const badge = document.getElementById('badge');
+    badge.className = 'badge ' + (guard ? 'guard' : 'probe');
+    document.getElementById('mode-text').textContent = guard ? '防护模式' : '探针模式';
+    document.getElementById('guard-remain').textContent = guard
+      ? '威胁平息后 ' + s.guard_remain + ' 秒自动降级回探针' : '';
+    document.getElementById('btn-mode').textContent = guard ? '手动降级回探针' : '手动升级防护模式';
+    const st = s.stats || {};
+    const items = [
+      ['当前 QPS', st.qps ?? 0, ''],
+      ['总请求', fmt(st.total), ''],
+      ['已拦截', fmt(st.blocked), (st.blocked > 0 ? 'err' : '')],
+      ['观察命中', fmt(st.monitored), (st.monitored > 0 ? 'warn' : '')],
+      ['人机验证', fmt(st.challenged), ''],
+      ['模式升级', fmt(st.escalations), (st.escalations > 0 ? 'warn' : '')],
+      ['运行时长', fmtDur(st.uptime), ''],
+      ['内存 RSS', (st.rss_mb ?? 0).toFixed(1) + ' MB', 'ok'],
+    ];
+    document.getElementById('stats').innerHTML = items.map(i =>
+      `<div class="stat"><div class="k">${i[0]}</div><div class="v ${i[2]}">${i[1]}</div></div>`).join('');
+    // Top 榜
+    if (st.top_ips && st.top_ips.length) {
+      let extra = '<div class="stat" style="grid-column:1/-1"><div class="k">拦截最多的 IP</div>' +
+        st.top_ips.map(t => `<code>${esc(t.key)}</code> ×${t.count}`).join(' &nbsp; ') + '</div>';
+      document.getElementById('stats').innerHTML += extra;
+    }
+  } catch (e) { /* 探测期忽略 */ }
+}
+
+document.getElementById('btn-mode').onclick = async () => {
+  const cur = document.getElementById('mode-text').textContent.includes('防护') ? 'probe' : 'guard';
+  await fetch(API('/api/mode'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: cur }) });
+  loadStatus();
+};
+
+async function resetStats() {
+  await fetch(API('/api/stats/reset'), { method: 'POST' });
+  loadStatus(); loadEvents();
+}
+
+// ---------- 事件 ----------
+let evQ = '';
+function debounceEv() {
+  clearTimeout(evTimer);
+  evTimer = setTimeout(() => { evQ = document.getElementById('ev-q').value; loadEvents(); }, 300);
+}
+async function loadEvents() {
+  try {
+    const kind = document.getElementById('ev-kind').value;
+    const q = document.getElementById('ev-q').value;
+    const r = await fetch(API('/api/events?n=100&kind=' + kind + '&q=' + encodeURIComponent(q)));
+    const d = await r.json();
+    const tb = document.querySelector('#ev-table tbody');
+    const evs = d.events || [];
+    if (!evs.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">暂无事件</td></tr>'; return; }
+    tb.innerHTML = evs.map(e => `<tr>
+      <td>${fmtTime(e.time)}</td>
+      <td><span class="kind ${e.kind}">${kindName(e.kind)}</span></td>
+      <td>${esc(e.ip)}</td>
+      <td>${esc(e.rule || '')}${e.rule ? '<br>' : ''}<span class="hint">${esc(e.desc || '')}</span></td>
+      <td>${esc(e.detail || '')}${e.host ? '<br><span class="hint">' + esc(e.method || '') + ' ' + esc(e.host) + esc(e.path || '') + '</span>' : ''}</td>
+    </tr>`).join('');
+  } catch (e) { /* ignore */ }
+}
+function kindName(k) {
+  return { block: '拦截', monitor: '观察', challenge: '验证', ban: '拉黑', escalate: '升级', deescalate: '降级' }[k] || k;
+}
+
+// ---------- 配置 ----------
+async function loadConfig() {
+  const r = await fetch(API('/api/config'));
+  cfg = await r.json();
+
+  // 设置页
+  document.getElementById('c-http').value = cfg.http_entry || '';
+  document.getElementById('c-https').value = cfg.https_entry || '';
+  document.getElementById('c-calm').value = cfg.calm_secs;
+  document.getElementById('c-bodymax').value = cfg.body_max;
+  document.getElementById('c-connrate').value = cfg.escalate_conns_per_min;
+  document.getElementById('c-trust').value = String(!!cfg.trust_proxy);
+  document.getElementById('c-cc-on').value = String(!!cfg.cc.enabled);
+  document.getElementById('c-cc-cap').value = cfg.cc.capacity;
+  document.getElementById('c-cc-win').value = cfg.cc.window;
+  document.getElementById('c-cc-act').value = cfg.cc.action;
+  document.getElementById('c-cc-bits').value = cfg.cc.pow_bits;
+  document.getElementById('c-cc-verify').value = cfg.cc.verify_secs;
+  document.getElementById('c-ab-on').value = String(!!cfg.auto_ban.enabled);
+  document.getElementById('c-ab-th').value = cfg.auto_ban.threshold;
+  document.getElementById('c-ab-win').value = cfg.auto_ban.window;
+  document.getElementById('c-ab-min').value = cfg.auto_ban.minutes;
+  document.getElementById('c-bp-title').value = cfg.block_page.title || '';
+  document.getElementById('c-bp-l1').value = cfg.block_page.line1 || '';
+  document.getElementById('c-bp-l2').value = cfg.block_page.line2 || '';
+
+  renderSites(); renderCustoms(); renderIPs(); loadGroups();
+}
+
+async function saveConfig() {
+  // 从表单回填
+  cfg.http_entry = val('c-http'); cfg.https_entry = val('c-https');
+  cfg.calm_secs = num('c-calm'); cfg.body_max = num('c-bodymax');
+  cfg.escalate_conns_per_min = num('c-connrate');
+  cfg.trust_proxy = val('c-trust') === 'true';
+  cfg.cc = { enabled: val('c-cc-on') === 'true', capacity: num('c-cc-cap'), window: num('c-cc-win'),
+    action: val('c-cc-act'), pow_bits: num('c-cc-bits'), verify_secs: num('c-cc-verify') };
+  cfg.auto_ban = { enabled: val('c-ab-on') === 'true', threshold: num('c-ab-th'),
+    window: num('c-ab-win'), minutes: num('c-ab-min') };
+  cfg.block_page = { title: val('c-bp-title'), line1: val('c-bp-l1'), line2: val('c-bp-l2') };
+
+  const r = await fetch(API('/api/config'), { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
+  const d = await r.json();
+  ['msg', 'msg-sites', 'msg-rules'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = d.ok ? '✅ 已保存并热更新生效' : '❌ ' + (d.error || '保存失败');
+      el.className = d.ok ? 'ok' : 'err'; }
+  });
+  if (d.ok) setTimeout(() => ['msg', 'msg-sites', 'msg-rules'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '';
+  }), 2500);
+  loadStatus();
+}
+
+// ---------- 站点 ----------
+function renderSites() {
+  const box = document.getElementById('sites');
+  if (!cfg.sites || !cfg.sites.length) { box.innerHTML = '<div class="empty">暂无站点，点击「添加站点」</div>'; return; }
+  box.innerHTML = cfg.sites.map((s, i) => `<div class="sitebox">
+    <div class="head"><b>${esc(s.name || s.id)}</b>
+      <button class="danger small" onclick="delSite(${i})">删除站点</button></div>
+    <div class="row">
+      <div class="field"><label>名称</label><input value="${esc(s.name)}" onchange="cfg.sites[${i}].name=this.value"></div>
+      <div class="field"><label>防护模式</label>
+        <select onchange="cfg.sites[${i}].mode=this.value">
+          <option value="block" ${s.mode === 'block' ? 'selected' : ''}>拦截</option>
+          <option value="monitor" ${s.mode === 'monitor' ? 'selected' : ''}>观察</option>
+          <option value="off" ${s.mode === 'off' ? 'selected' : ''}>关闭</option>
+        </select></div>
+    </div>
+    <div class="field"><label>域名（逗号分隔，支持 * 通配）</label>
+      <input value="${esc((s.domains || []).join(', '))}" onchange="cfg.sites[${i}].domains=this.value.split(',').map(x=>x.trim()).filter(Boolean)"></div>
+    <div class="field"><label>上游地址（逗号分隔 host:port，多上游自动轮询）</label>
+      <input value="${esc((s.backends || []).join(', '))}" onchange="cfg.sites[${i}].backends=this.value.split(',').map(x=>x.trim()).filter(Boolean)"></div>
+    <div class="row">
+      <div class="field"><label>证书文件（HTTPS 入口用，可选）</label>
+        <input value="${esc(s.cert_file || '')}" placeholder="/path/fullchain.pem" onchange="cfg.sites[${i}].cert_file=this.value"></div>
+      <div class="field"><label>私钥文件</label>
+        <input value="${esc(s.key_file || '')}" placeholder="/path/privkey.pem" onchange="cfg.sites[${i}].key_file=this.value"></div>
+    </div>
+  </div>`).join('');
+}
+function addSite() {
+  cfg.sites = cfg.sites || [];
+  cfg.sites.push({ id: 'site_' + Date.now().toString(36), name: '新站点', domains: [''], backends: ['127.0.0.1:8081'], mode: 'monitor' });
+  renderSites();
+}
+function delSite(i) { cfg.sites.splice(i, 1); renderSites(); }
+
+// ---------- 规则组 ----------
+async function loadGroups() {
+  const r = await fetch(API('/api/rules'));
+  const d = await r.json();
+  document.getElementById('groups').innerHTML = (d.groups || []).map(g => `
+    <div class="switchrow">
+      <div><span class="t">${esc(g.name)}<span class="c">${g.count} 条</span></span>
+        <div class="d">${esc(g.desc)}</div></div>
+      <div class="switch ${g.enabled ? 'on' : ''}" onclick="toggleGroup('${g.key}', this)"></div>
+    </div>`).join('');
+}
+function toggleGroup(key, el) {
+  el.classList.toggle('on');
+  cfg.rule_groups = cfg.rule_groups || {};
+  cfg.rule_groups[key] = el.classList.contains('on');
+}
+
+// ---------- 自定义规则 ----------
+function renderCustoms() {
+  const box = document.getElementById('customs');
+  cfg.custom_rules = cfg.custom_rules || [];
+  if (!cfg.custom_rules.length) { box.innerHTML = '<div class="empty">暂无自定义规则</div>'; return; }
+  box.innerHTML = cfg.custom_rules.map((c, i) => `<div class="sitebox">
+    <div class="head"><b>${esc(c.name || '未命名')}</b>
+      <div class="actions">
+        <div class="switch ${c.enabled ? 'on' : ''}" onclick="cfg.custom_rules[${i}].enabled=!cfg.custom_rules[${i}].enabled;this.classList.toggle('on')"></div>
+        <button class="danger small" onclick="cfg.custom_rules.splice(${i},1);renderCustoms()">删除</button>
+      </div></div>
+    <div class="row">
+      <div class="field"><label>名称</label><input value="${esc(c.name)}" onchange="cfg.custom_rules[${i}].name=this.value"></div>
+      <div class="field"><label>目标</label>
+        <select onchange="cfg.custom_rules[${i}].target=this.value">
+          ${['all','path','query','headers','ua','referer','cookie','body'].map(t =>
+            `<option value="${t}" ${c.target === t ? 'selected' : ''}>${t}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>动作</label>
+        <select onchange="cfg.custom_rules[${i}].action=this.value">
+          <option value="block" ${c.action !== 'monitor' ? 'selected' : ''}>拦截</option>
+          <option value="monitor" ${c.action === 'monitor' ? 'selected' : ''}>观察</option>
+        </select></div>
+    </div>
+    <div class="field"><label>正则表达式（RE2）</label>
+      <input value="${esc(c.regex)}" placeholder="(?i)(badword|attack)" onchange="cfg.custom_rules[${i}].regex=this.value"></div>
+  </div>`).join('');
+}
+function addCustom() {
+  cfg.custom_rules.push({ id: 'cr_' + Date.now().toString(36), name: '新规则',
+    regex: '', target: 'all', action: 'block', enabled: true });
+  renderCustoms();
+}
+
+// ---------- IP 名单 ----------
+function renderIPs() {
+  const bl = cfg.ip_blacklist || [], wl = cfg.ip_whitelist || [];
+  document.getElementById('bl-body').innerHTML = bl.length ? bl.map(e => `<tr>
+    <td><code>${esc(e.cidr)}</code></td><td>${esc(e.reason || '')}</td>
+    <td>${e.expires ? fmtTime(e.expires) : '永久'}</td>
+    <td><button class="danger small" onclick="ipDel('black', '${esc(e.cidr)}')">移除</button></td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">暂无条目</td></tr>';
+  document.getElementById('wl-body').innerHTML = wl.length ? wl.map(e => `<tr>
+    <td><code>${esc(e.cidr)}</code></td><td>${esc(e.reason || '')}</td>
+    <td><button class="danger small" onclick="ipDel('white', '${esc(e.cidr)}')">移除</button></td></tr>`).join('')
+    : '<tr><td colspan="3" class="empty">暂无条目</td></tr>';
+}
+async function ipAdd(list) {
+  const cidr = document.getElementById(list === 'black' ? 'bl-cidr' : 'wl-cidr').value.trim();
+  const reason = document.getElementById(list === 'black' ? 'bl-reason' : 'wl-reason').value.trim();
+  if (!cidr) return;
+  const r = await fetch(API('/api/ip'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ list, action: 'add', cidr, reason }) });
+  const d = await r.json();
+  if (d.ok) { loadConfig(); } else { alert(d.error || '操作失败'); }
+}
+async function ipDel(list, cidr) {
+  await fetch(API('/api/ip'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ list, action: 'remove', cidr }) });
+  loadConfig();
+}
+
+// ---------- 工具 ----------
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(n) { return Number(n ?? 0).toLocaleString(); }
+function fmtTime(t) { if (!t) return ''; const d = new Date(t * 1000);
+  return d.toLocaleTimeString('zh-CN', { hour12: false }); }
+function fmtDur(s) { s = Number(s || 0); if (s < 60) return s + ' 秒';
+  if (s < 3600) return Math.floor(s / 60) + ' 分'; if (s < 86400) return Math.floor(s / 3600) + ' 时';
+  return Math.floor(s / 86400) + ' 天'; }
+function val(id) { return document.getElementById(id).value.trim(); }
+function num(id) { const v = parseInt(val(id), 10); return isNaN(v) ? 0 : v; }
+
+// ---------- 启动 ----------
+loadConfig();
+loadStatus();
+loadEvents();
+setInterval(loadStatus, 5000);
+setInterval(loadEvents, 5000);
+</script>
+</body>
+</html>
